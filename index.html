@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>状态重启</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<header class="topbar">
+  <div class="topbar-title" id="topbarTitle">状态重启</div>
+  <nav class="topnav" id="topnav">
+    <button class="topnav-item active" data-nav="home">首页</button>
+    <button class="topnav-item" data-nav="pattern">规律</button>
+    <button class="topnav-item" data-nav="settings">设置</button>
+  </nav>
+</header>
+
+<main id="app">
+
+  <!-- ========== 首页 ========== -->
+  <section class="view" id="view-home">
+    <div class="hero-actions">
+      <button class="big-btn big-btn-danger" id="btnRescue">
+        <span class="big-btn-icon">⚡</span>
+        <span class="big-btn-text">
+          <strong>我现在卡住了</strong>
+          <em>3–5 分钟急救，恢复到可行动状态</em>
+        </span>
+      </button>
+      <button class="big-btn big-btn-normal" id="btnDaily">
+        <span class="big-btn-icon">📝</span>
+        <span class="big-btn-text">
+          <strong>记录今日状态</strong>
+          <em>1 分钟，积累你的状态规律</em>
+        </span>
+      </button>
+    </div>
+
+    <div class="home-cards">
+      <div class="stat-row">
+        <div class="stat-cell">
+          <div class="stat-num" id="statStreak">0</div>
+          <div class="stat-label">连续记录天数</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-num" id="statTopState">—</div>
+          <div class="stat-label">本周最常出现状态</div>
+        </div>
+      </div>
+      <div class="card" id="lastMethodCard" style="display:none">
+        <div class="card-title">最近有效的调整方法</div>
+        <div class="card-body" id="lastMethodBody"></div>
+      </div>
+    </div>
+
+    <div class="home-tip" id="homeTip">历史数据只保存在本机，可在「设置」中导出备份。</div>
+  </section>
+
+  <!-- ========== 流程视图（急救 / 日常记录共用） ========== -->
+  <section class="view" id="view-flow" style="display:none">
+    <div class="flow-head">
+      <button class="flow-back" id="flowBack">‹ 返回</button>
+      <div class="flow-title" id="flowTitle">状态识别</div>
+      <div class="flow-step" id="flowStep">1/4</div>
+    </div>
+
+    <!-- 步骤1：状态识别 -->
+    <div class="flow-page" id="step-identify">
+      <div class="intro" id="flowIntro"></div>
+      <div class="slider-group" id="sliderGroup"></div>
+      <div class="field">
+        <div class="field-label">主要诱因（可多选）</div>
+        <div class="chip-group" id="triggerGroup"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">此刻想说的（可留空）</div>
+        <textarea class="textarea" id="freeText" rows="3" maxlength="500"
+          placeholder="发生了什么 / 脑子里在反复想什么"></textarea>
+      </div>
+      <div class="state-result" id="stateResult" style="display:none"></div>
+      <button class="primary-btn" id="btnIdentifyNext">识别状态</button>
+    </div>
+
+    <!-- 步骤2：AI 关键追问 -->
+    <div class="flow-page" id="step-question" style="display:none">
+      <div class="q-box">
+        <div class="q-tag" id="qTag">关键追问</div>
+        <div class="q-text" id="qText"></div>
+      </div>
+      <div class="field">
+        <div class="field-label">你的回答（尽量具体到事实）</div>
+        <textarea class="textarea" id="answerText" rows="5" maxlength="800"
+          placeholder="写下来，不用修饰，写事实"></textarea>
+      </div>
+      <div class="ai-status" id="aiStatus"></div>
+      <button class="primary-btn" id="btnAnswerNext">生成恢复卡</button>
+    </div>
+
+    <!-- 步骤3：恢复卡 -->
+    <div class="flow-page" id="step-card" style="display:none">
+      <div class="recovery-card" id="recoveryCard"></div>
+      <div class="card-actions">
+        <button class="ghost-btn" id="btnCopyCard">复制恢复卡</button>
+      </div>
+      <button class="primary-btn" id="btnCardNext">下一步：安排回访</button>
+    </div>
+
+    <!-- 步骤4：行动回访 -->
+    <div class="flow-page" id="step-followup" style="display:none">
+      <div class="intro">第一版不能自动推送。选择回访时间，复制提醒文本，自己设一个手机提醒。</div>
+      <div class="chip-group" id="followupGroup"></div>
+      <div class="remind-box" id="remindBox"></div>
+      <button class="ghost-btn" id="btnCopyRemind">复制提醒文本</button>
+      <button class="primary-btn" id="btnFinishFlow">完成并保存</button>
+    </div>
+
+    <!-- 完成页 -->
+    <div class="flow-page" id="step-done" style="display:none">
+      <div class="done-icon">✓</div>
+      <div class="done-text" id="doneText">已保存</div>
+      <button class="primary-btn" id="btnGoHome">回到首页</button>
+    </div>
+  </section>
+
+  <!-- ========== 规律页 ========== -->
+  <section class="view" id="view-pattern" style="display:none">
+    <div class="pattern-range" id="patternRange">
+      <button class="chip active" data-range="30">近30天</button>
+      <button class="chip" data-range="90">近90天</button>
+      <button class="chip" data-range="0">全部</button>
+    </div>
+    <div id="patternBody"><div class="empty-tip">还没有记录，先去首页记一次状态。</div></div>
+  </section>
+
+  <!-- ========== 设置页 ========== -->
+  <section class="view" id="view-settings" style="display:none">
+    <div class="card">
+      <div class="card-title">AI 增强</div>
+      <div class="setting-row">
+        <span>AI 生成个性化恢复卡</span>
+        <label class="switch"><input type="checkbox" id="setAiEnabled"><span class="slider"></span></label>
+      </div>
+      <div class="field"><div class="field-label">接口地址（OpenAI 兼容）</div>
+        <input class="input" id="setAiUrl" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions"></div>
+      <div class="field"><div class="field-label">模型名</div>
+        <input class="input" id="setAiModel" placeholder="glm-4.7-flash"></div>
+      <div class="field"><div class="field-label">API Key（只存本机）</div>
+        <input class="input" id="setAiKey" type="password" placeholder="粘贴你的 Key"></div>
+      <button class="ghost-btn" id="btnTestAi">测试 AI 连接</button>
+      <div class="ai-status" id="aiTestStatus"></div>
+      <div class="hint">AI 失败时自动用本地规则生成恢复卡，不影响使用。关闭开关则始终用本地规则。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">数据备份</div>
+      <div class="hint" style="margin-top:0">历史记录只保存在本机。换手机或清理浏览器数据前，请先导出备份。</div>
+      <div class="card-actions">
+        <button class="ghost-btn" id="btnExportJson">导出 JSON 备份</button>
+        <button class="ghost-btn" id="btnExportCsv">导出 CSV</button>
+        <button class="ghost-btn" id="btnImportJson">导入 JSON 备份</button>
+        <input type="file" id="importFile" accept=".json,application/json" style="display:none">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">关于</div>
+      <div class="hint">状态重启 · 第一版<br>本工具不提供心理或医学诊断。如果你正处于强烈痛苦或出现伤害自己的念头，请立即联系你信任的人，或拨打心理援助热线：全国热线 <b>12356</b>（24小时）/ 希望24热线 <b>400-161-9995</b>。</div>
+      <button class="danger-btn" id="btnClearData">清空全部数据</button>
+    </div>
+  </section>
+</main>
+
+<!-- 回访弹层 -->
+<div class="modal-mask" id="followupModal" style="display:none">
+  <div class="modal">
+    <div class="modal-title">到点回访</div>
+    <div class="modal-body" id="followupModalBody"></div>
+  </div>
+</div>
+
+<!-- 安全提示弹层 -->
+<div class="modal-mask" id="safeModal" style="display:none">
+  <div class="modal">
+    <div class="modal-title">请先停一下</div>
+    <div class="modal-body" id="safeModalBody"></div>
+    <button class="primary-btn" id="btnSafeClose">我知道了</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
