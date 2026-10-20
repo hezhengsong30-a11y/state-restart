@@ -3,11 +3,30 @@
 'use strict';
 
 /* ========== 常量 ========== */
-var START = '2026-10-20';
+var START = '2026-10-20';         // 兜底值（DB.cycles 未就绪时用）
 var END   = '2026-11-18';
 var TOTAL = 30;
 var CYCLE = '2026年10月20日至11月18日';
 var LS_KEY = 'health30_v1';   // 沿用原 key，保证已有数据不丢
+
+/* 当前周期 getter（从 DB.cycles 读，无则回退到硬编码） */
+function currentCycle(){
+  if(DB && Array.isArray(DB.cycles) && DB.cycles.length) return DB.cycles[0];
+  return { id:1, start:START, end:END, name:'2026年10月至11月', reviewDate:'2026-11-18', active:true };
+}
+function cycleStart(){ return currentCycle().start || START; }
+function cycleEnd(){ return currentCycle().end || END; }
+function cycleTotal(){
+  var cs=parseD(cycleStart()), ce=parseD(cycleEnd());
+  return Math.round((ce-cs)/86400000) + 1;
+}
+function cycleLabel(){
+  var c=currentCycle();
+  if(!c) return CYCLE;
+  var ps=c.start.split('-'), pe=c.end.split('-');
+  var sm=+ps[1], sd=+ps[2], em=+pe[1], ed=+pe[2];
+  return ps[0]+'年'+sm+'月'+sd+'日至'+em+'月'+ed+'日';
+}
 
 var PLAN = [
   {focus:'开始打卡，记录血糖 7.0，选定起床和睡觉时间', walk:'饭后10分钟'},
@@ -79,7 +98,7 @@ function fmt(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDat
 function parseD(s){ var p=s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
 function todayStr(){ return fmt(new Date()); }
 function addDays(s, n){ var d=parseD(s); d.setDate(d.getDate()+n); return fmt(d); }
-function dayIndex(dateStr){ return Math.round((parseD(dateStr) - parseD(START)) / 86400000) + 1; }
+function dayIndex(dateStr){ return Math.round((parseD(dateStr) - parseD(cycleStart())) / 86400000) + 1; }
 function dateLabel(dateStr){ var p=dateStr.split('-'); return (+p[1])+'月'+(+p[2])+'日'; }
 function hhmm(dt){ return pad(dt.getHours())+':'+pad(dt.getMinutes()); }
 function $(sel, el){ return (el||document).querySelector(sel); }
@@ -122,7 +141,19 @@ function blankBase(){
   };
 }
 function blankDB(){
-  return { version:2, baseline:blankBase(), days:{}, weeks:{}, settings:{}, inited:false };
+  return {
+    version:3,
+    baseline:blankBase(),
+    days:{}, weeks:{}, settings:{},
+    cycles:[
+      { id:1, start:START, end:END, name:'2026年10月至11月', reviewDate:'2026-11-18', active:true }
+    ],
+    issues:[],           // {id,name,type,currentStatus,keywords[],source,occurDate,monitorIds[],cycleGoal,linkedActions[],nextReviewDate,reviewDate,focus:boolean,archived:boolean,archivedAt,archivedReason,createdAt,updatedAt}
+    events:[],           // {id,date,approxDate,type,issueIds[],description,source,value,valueUnit,notes,createdAt}
+    reviews:[],          // 月度复盘快照 {id,cycleId,reviewDate,completedAt,evaluations:[{issueId,rating,evidence,note}],nextPlan}
+    monitorItems:[],     // 监测项目定义 {id,issueId,name,kind:'num'|'score'|'status'|'text',unit,options[],notes,createdAt}
+    trash:[]             // 回收站 {type:'issue'|'event'|'monitorItem',obj,deletedAt}
+  };
 }
 function load(){
   var db = null;
@@ -161,7 +192,7 @@ function migrate(db){
       db.days[ds]=d;
     });
   }
-  db.version = 2;
+  db.version = 3;
   db.baseline = db.baseline || blankBase();
   if(Array.isArray(db.baseline)) db.baseline = blankBase();
   ['weight','glucose','waist'].forEach(function(k){
@@ -180,6 +211,16 @@ function migrate(db){
   db.weeks = db.weeks || {};
   db.settings = db.settings || {};
   if(!Array.isArray(db.settings.dismissedBackup)) db.settings.dismissedBackup=[];
+
+  /* v2 → v3：新增健康档案集合，旧数据完整保留 */
+  if(!Array.isArray(db.cycles) || db.cycles.length===0){
+    db.cycles = [{ id:1, start:START, end:END, name:'2026年10月至11月', reviewDate:'2026-11-18', active:true }];
+  }
+  if(!Array.isArray(db.issues)) db.issues=[];
+  if(!Array.isArray(db.events)) db.events=[];
+  if(!Array.isArray(db.reviews)) db.reviews=[];
+  if(!Array.isArray(db.monitorItems)) db.monitorItems=[];
+  if(!Array.isArray(db.trash)) db.trash=[];
   return db;
 }
 
@@ -222,18 +263,20 @@ function dayHasContent(d){
 /* ========== 统计 ========== */
 var undoStack = {};   // 内存态：{date:{water:[], walk:[]}}
 
-function weekOfIdx(idx){ return Math.floor((idx-1)/7)+1; }        // 1..5
-function weekRange(w){ return [ addDays(START,(w-1)*7), addDays(START, Math.min(w*7,TOTAL)-1) ]; }
+function weekOfIdx(idx){ return Math.floor((idx-1)/7)+1; }        // 1..N
+function weekRange(w){ return [ addDays(cycleStart(),(w-1)*7), addDays(cycleStart(), Math.min(w*7,cycleTotal())-1) ]; }
 function currentWeek(){
   var idx = dayIndex(todayStr());
+  var tot = cycleTotal();
   if(idx<1) return 1;
-  if(idx>TOTAL) return 5;
+  if(idx>tot) return Math.ceil(tot/7);
   return weekOfIdx(idx);
 }
 /* 已打卡 = 提交了记录（唯一日期计数，重复提交不增加） */
 function submittedDates(){ return Object.keys(DB.days).filter(function(ds){ return isSubmitted(DB.days[ds]); }); }
 function weekSubmittedDays(w){
-  var st = submittedDates().filter(function(ds){ var i=dayIndex(ds); return i>=1 && i<=TOTAL && weekOfIdx(i)===w; });
+  var tot = cycleTotal();
+  var st = submittedDates().filter(function(ds){ var i=dayIndex(ds); return i>=1 && i<=tot && weekOfIdx(i)===w; });
   return st.length;
 }
 function streak(){
@@ -255,9 +298,10 @@ function dayTargetFull(d){
   });
 }
 function modeFullDays(){
+  var tot = cycleTotal();
   return Object.keys(DB.days).filter(function(ds){
     var d=DB.days[ds]; var i=dayIndex(ds);
-    if(i<1||i>TOTAL) return false;
+    if(i<1||i>tot) return false;
     return dayHasContent(d) && dayTargetFull(d);
   }).length;
 }
@@ -268,7 +312,7 @@ var viewDate=todayStr();
 var editing=false;
 var uiState={ glucose:false, mood:false, moodMore:false, extra:false, tips:{} };
 
-function renderAll(){ renderToday(); renderPlan(); renderTrend(); renderSetting(); }
+function renderAll(){ renderToday(); renderPlan(); renderTrend(); renderSetting(); if(typeof window.__h30_renderArchive==='function') window.__h30_renderArchive(); }
 
 /* ============ 今日页 ============ */
 function renderToday(){
@@ -1277,13 +1321,36 @@ $$('.tab').forEach(function(btn){
     if(currentTab==='trend') renderTrend();
     if(currentTab==='setting') renderSetting();
     if(currentTab==='plan') renderPlan();
+    if(currentTab==='archive' && typeof window.__h30_renderArchive==='function') window.__h30_renderArchive();
     window.scrollTo(0,0);
   });
 });
 
 renderAll();
 
-/* 仅用于本地自测：带 ?selftest=1 时暴露内部函数，不影响正常使用 */
+/* 共享 API：health-archive.js 通过此对象读写共享状态（始终暴露，不依赖 selftest 参数） */
+window.__h30_api = {
+  DB: DB,
+  get DB(){ return DB; },
+  set DB(x){ DB=x; },
+  save: save,
+  renderAll: renderAll,
+  toast: toast,
+  $: $, $$: $$,
+  esc: esc,
+  hasNum: hasNum, num: num,
+  parseD: parseD, fmt: fmt, pad: pad, hhmm: hhmm,
+  todayStr: todayStr, addDays: addDays, dayIndex: dayIndex, dateLabel: dateLabel,
+  triOf: triOf, isSubmitted: isSubmitted, dayHasContent: dayHasContent,
+  blankDB: blankDB, blankDay: blankDay, blankBase: blankBase, migrate: migrate,
+  cycleStart: cycleStart, cycleEnd: cycleEnd, cycleTotal: cycleTotal, cycleLabel: cycleLabel, currentCycle: currentCycle,
+  weekOfIdx: weekOfIdx, weekRange: weekRange, currentWeek: currentWeek,
+  showModal: showModal, closeModal: closeModal, download: download,
+  /* 档案页状态钩子 */
+  setArchiveRender: function(fn){ window.__h30_renderArchive = fn; }
+};
+
+/* 仅用于本地自测：带 ?selftest=1 时暴露额外函数 */
 if(/[?&]selftest=1/.test(location.search)){
   window.__h30 = {
     getDB:function(){ return DB; },
@@ -1295,7 +1362,7 @@ if(/[?&]selftest=1/.test(location.search)){
     load:load, save:save, blankDay:blankDay, renderAll:renderAll,
     setViewDate:function(d){ viewDate=d; editing=false; renderToday(); },
     openImportDialog:openImportDialog, doImport:doImport, weekSubmittedDays:weekSubmittedDays,
-    modeFullDays:modeFullDays, streak:streak
+    modeFullDays:modeFullDays, streak:streak, currentCycle:currentCycle, cycleTotal:cycleTotal
   };
 }
 })();

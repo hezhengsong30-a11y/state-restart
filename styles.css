@@ -392,3 +392,64 @@ details.tips>summary::-webkit-details-marker{display:none}
 .modal-btns .btn{flex:1;font-size:.85rem;padding:10px}
 .radio{display:block;font-size:.8rem;margin:4px 0;cursor:pointer}
 .radio input{margin-right:6px}
+
+/* ===== 健康档案页 ===== */
+.archive-overview .ao-row{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:6px;
+}
+.archive-overview .ao-label{font-size:.72rem;color:var(--text-3);display:block;margin-bottom:2px}
+.archive-overview .ao-val{font-size:.92rem;font-weight:600}
+.muted{color:var(--text-3);font-weight:400}
+
+/* 重点问题卡片 */
+.archive-issue-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px;margin-bottom:12px;box-shadow:var(--shadow);
+}
+.aic-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+.aic-title{flex:1;font-size:.98rem;font-weight:700}
+.aic-actions{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.aic-badge{
+  font-size:.68rem;background:var(--primary);color:#fff;border-radius:4px;
+  padding:1px 6px;font-weight:500;margin-left:6px;vertical-align:middle;
+}
+.aic-section{margin-top:10px}
+.aic-sub{font-size:.72rem;color:var(--text-3);font-weight:500;margin-bottom:3px}
+.aic-body{font-size:.88rem;color:var(--text-2);line-height:1.6}
+.aic-date{font-size:.75rem;color:var(--text-3)}
+.aic-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.aic-more{display:flex;gap:8px;margin-top:8px}
+
+/* 其他问题列表 */
+.ao-list{display:flex;flex-direction:column;gap:8px}
+.ao-item{
+  border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg);
+}
+.ao-item-title{font-size:.9rem;font-weight:600}
+.ao-item-kws{font-size:.75rem;color:var(--text-3);margin-top:3px}
+.ao-item-meta{margin-top:5px;display:flex;gap:10px}
+
+/* 时间线 */
+.timeline{display:flex;flex-direction:column;gap:0}
+.tl-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px dashed var(--border)}
+.tl-item:last-child{border-bottom:none}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:6px;box-shadow:0 0 0 3px #fff}
+.tl-body{flex:1;min-width:0}
+.tl-head{display:flex;gap:8px;align-items:baseline;margin-bottom:2px}
+.tl-type{font-size:.78rem;font-weight:600}
+.tl-date{font-size:.72rem;color:var(--text-3);margin-left:auto}
+.tl-issues{font-size:.75rem;color:var(--text-2);margin-top:2px}
+.tl-desc{font-size:.85rem;color:var(--text);margin-top:2px;line-height:1.5}
+.tl-val{font-size:.85rem;color:var(--primary);font-weight:600;margin-top:2px}
+.tl-note{font-size:.75rem;color:var(--text-3);margin-top:2px}
+.tl-actions{margin-top:4px;display:flex;gap:10px}
+
+/* 复盘 */
+.review-head{font-size:.78rem;color:var(--text-2);margin-bottom:8px}
+.review-table{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.rt-row{display:grid;grid-template-columns:1fr 1fr 1fr;font-size:.82rem;padding:8px 10px;border-bottom:1px solid var(--border);gap:4px}
+.rt-row:last-child{border-bottom:none}
+.rt-head{background:var(--bg);font-weight:600;color:var(--text-2);font-size:.78rem}
+
+/* 小 chip */
+.chip-sm{font-size:.7rem;padding:2px 8px;margin:2px}
