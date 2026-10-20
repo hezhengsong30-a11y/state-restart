@@ -334,13 +334,13 @@ function renderToday(){
     + '<div class="mode-label">显示模式</div>'
     + '<div class="seg-switch">'
     +   '<button class="seg-btn'+(busy?'':' on')+'" data-mode="standard" '+(locked?'disabled':'')+'>标准版</button>'
-    +   '<button class="seg-btn'+(busy?' on':'')+'" data-mode="busy" '+(locked?'disabled':'')+'>忙碌版</button>'
+    +   '<button class="seg-btn'+(busy?' on':'')+'" data-mode="busy" '+(locked?'disabled':'')+'>极简版</button>'
     + '</div></div>';
-  html += '<div class="chart-note" style="margin:-4px 0 12px">忙碌版只简化显示，不影响其他记录，也不会自动打勾。</div>';
+  html += '<div class="chart-note" style="margin:-4px 0 12px">极简版只简化显示，不影响其他记录，也不会自动打勾。</div>';
 
   /* 3. 今日行动与快捷打卡 */
   var dis = locked ? ' disabled' : '';
-  html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'忙碌版 4 项':'标准版 7 项')+'</span></div>';
+  html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'极简版 4 项':'标准版 7 项')+'</span></div>';
   if(!busy){
     html += actionTri(t,'dietOk','饮食规律，餐盘比例基本合理','',locked);
     html += actionTri(t,'noAlcoholSweet','无酒、无含糖饮料','',locked);
@@ -350,7 +350,7 @@ function renderToday(){
     html += actionTri(t,'sedentaryBreaks','久坐中断','每坐约1小时起身3分钟',locked);
     html += actionTri(t,'relax','放松 3～5 分钟','可选，可今日跳过',locked,true);
   } else {
-    html += '<div class="chart-note" style="margin:-2px 0 8px">忙碌版保住这 4 项即可：规律吃饭、无酒无甜饮、步行10分钟、尽量按时休息。</div>';
+    html += '<div class="chart-note" style="margin:-2px 0 8px">极简版保住这 4 项即可：规律吃饭、无酒无甜饮、步行10分钟、尽量按时休息。</div>';
     html += actionTri(t,'dietOk','规律吃饭','不跳餐、不吃撑',locked);
     html += actionTri(t,'noAlcoholSweet','无酒、无含糖饮料','',locked);
     html += actionNum(t,'walkMin','步行（至少10分钟）','分钟','例如 15',locked,'plan-walk');
@@ -817,7 +817,7 @@ function renderTrend(){
 
   html += '<div class="notice" style="margin-bottom:12px">统计口径：<b>「已打卡」只表示提交了记录，不等于全部行动完成。</b>'
     + '数字类项目（步行／睡眠／饮水）以实际数值计入，不自动判断达标；未记录的项目不按 0 计算。'
-    + '标准版与忙碌版分别统计，不混用同一个完成率。'
+    + '标准版与极简版分别统计，不混用同一个完成率。'
     + '「当日模式目标完成天」= 当天所选模式的各项都达到完成或已记录的天数。</div>';
 
   /* 体重 */
@@ -913,7 +913,7 @@ function weekBlock(w){
   html += '<div class="week-metrics">'
     + '<div class="wm"><b>'+recorded.length+'/'+days.length+'</b><span>记录天数</span></div>'
     + '<div class="wm"><b>'+submitted.length+'</b><span>已打卡天数</span></div>'
-    + '<div class="wm"><b>'+std.length+' / '+busy.length+'</b><span>标准版 / 忙碌版</span></div>'
+    + '<div class="wm"><b>'+std.length+' / '+busy.length+'</b><span>标准版 / 极简版</span></div>'
     + '</div>';
   html += '<div class="week-metrics">'
     + '<div class="wm"><b>'+(walkN?(walkSum)+' 分钟':'—')+'</b><span>步行总时长'+(walkN?(' · 基于 '+walkN+' 天'):'')+'</span></div>'
@@ -922,7 +922,7 @@ function weekBlock(w){
 
   html += '<div class="mode-cols">';
   html += modeStatCol('标准版',std,STD_KEYS);
-  html += modeStatCol('忙碌版',busy,BUSY_KEYS);
+  html += modeStatCol('极简版',busy,BUSY_KEYS);
   html += '</div>';
 
   html += '<div class="field week-adjust"><label>下周调整（一句话）</label>'
@@ -1239,7 +1239,7 @@ function toCSV(){
   Object.keys(DB.days).sort().forEach(function(ds){
     var d=DB.days[ds];
     var gl=(d.glucose||[]);
-    rows.push([ds, dayIndex(ds), (d.mode||'standard')==='busy'?'忙碌版':'标准版',
+    rows.push([ds, dayIndex(ds), (d.mode||'standard')==='busy'?'极简版':'标准版',
       isSubmitted(d)?'是':'否', d.submitTime||'',
       triText(d,'dietOk'), triText(d,'noAlcoholSweet'),
       hasNum(d.walkMin)?num(d.walkMin):'', hasNum(d.walkMin)?'已记录':'未记录',
