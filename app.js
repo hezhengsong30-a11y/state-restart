@@ -144,12 +144,15 @@ function renderToday(){
   var canPrev = t > START;
   var canNext = t < today;
   html += '<div class="date-nav">'
-    + '<button class="nav-arrow" id="nav-prev" '+(canPrev?'':'disabled')+'>‹</button>'
-    + '<div class="nav-label">' + dateLabel(t)
-    + (isToday ? ' <span class="today-badge">今天</span>' : ' <span class="draft-badge">'+(isChecked(d)?'已打卡':'草稿')+'</span>')
-    + (isToday ? '' : '<a href="javascript:void 0" id="nav-back-today" class="back-today">回到今天</a>')
+    + '<button class="nav-arrow" id="nav-prev" '+(canPrev?'':'disabled')+'>‹ 前一天</button>'
+    + '<div class="nav-label"><div>' + dateLabel(t)
+    + (isToday ? ' <span class="today-badge">今天</span>' : ' <span class="draft-badge">'+ (isChecked(d)?'已打卡':'草稿') + ' · 修改中</span>')
     + '</div>'
-    + '<button class="nav-arrow" id="nav-next" '+(canNext?'':'disabled')+'>›</button>'
+    + (isToday
+        ? '<div class="nav-hint">点两侧箭头可查看、修改其他日期的记录</div>'
+        : '<a href="javascript:void 0" id="nav-back-today" class="back-today">✕ 完成修改，回到今天</a>')
+    + '</div>'
+    + '<button class="nav-arrow" id="nav-next" '+(canNext?'':'disabled')+'>后一天 ›</button>'
     + '</div>';
 
   html += '<div class="day-hero">'
@@ -227,8 +230,8 @@ function renderToday(){
     + '<div class="field"><label>备注 / 复盘</label><textarea id="f-note" placeholder="复盘日写在这里">'+esc(d.note)+'</textarea></div>'
     + '</div>';
 
+  html += '<div class="draft-status" id="draft-status">输入内容会自动保存草稿，无需手动操作</div>';
   html += '<button class="btn" id="btn-save">' + (isToday ? '完成今日打卡' : '保存修改') + '</button>';
-  html += '<div class="chart-note" style="margin-top:6px">填写内容会自动保存为草稿，中途退出不会丢失</div>';
   html += '<div style="height:10px"></div>';
   html += '<div class="notice red">⚠️ 如出现黄疸、持续腹痛、腰痛伴发热或尿量显著减少等明显新症状，请及时就医。本工具不替代医嘱，用药和复查按医生要求执行。</div>';
 
@@ -275,11 +278,21 @@ function bindToday(el, d){
 
   /* 输入自动保存草稿（防抖） */
   var draftTimer = null;
+  function showDraftSaved(){
+    var s = $('#draft-status', el);
+    if(!s) return;
+    var now = new Date();
+    s.textContent = '✓ 草稿已自动保存 ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+    s.classList.add('saved');
+  }
   function autoDraft(){
     clearTimeout(draftTimer);
+    var s = $('#draft-status', el);
+    if(s){ s.textContent = '正在输入…'; s.classList.remove('saved'); }
     draftTimer = setTimeout(function(){
       collectFields(el, d);
       save();
+      showDraftSaved();
     }, 600);
   }
   ['#f-water','#f-walk','#f-sleep','#f-wake','#f-weight','#f-waist','#f-stress','#f-did','#f-tomorrow','#f-note'].forEach(function(sel){
@@ -328,7 +341,7 @@ function renderPlan(){
   var el = $('#page-plan');
   var t = todayStr();
   var todayIdx = dayIndex(t);
-  var html = '<div class="notice" style="margin-bottom:12px">每天都做固定习惯，下表每天只增加一个重点。漏卡不补做，第二天继续。</div>';
+  var html = '<div class="notice" style="margin-bottom:12px">每天都做固定习惯，下表每天只增加一个重点。漏卡不补做，第二天继续。<br><b>✏️ 点击任意已过去的日期，可查看或修改那一天的打卡记录。</b></div>';
   var lastWeek = 0;
   for(var i=0;i<30;i++){
     var week = Math.floor(i/7)+1;
