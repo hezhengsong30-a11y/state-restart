@@ -77,20 +77,22 @@ var STD_KEYS  = ['dietOk','noAlcoholSweet','walkMin','sleepH','waterMl','sedenta
 var BUSY_KEYS = ['dietOk','noAlcoholSweet','walkMin','sleepRest'];
 
 var TIPS = {
-  diet: '三餐规律，不跳餐、不吃撑。午晚餐尽量半盘非淀粉类蔬菜、四分之一鱼肉蛋豆、四分之一主食。<b>土豆、玉米、山药算主食。</b>',
+  diet: '三餐规律，不跳餐、不吃撑。午晚餐尽量半盘非淀粉类蔬菜、四分之一鱼肉蛋豆、四分之一主食。<b>土豆、玉米、山药算主食。</b><br>参考热量约1300～1400千卡/日（碳水45%、蛋白质30%、脂肪25%），具体以营养科方案为准。气虚质宜选平和补气食物：山药、小米、南瓜、红枣、牛肉、鲫鱼、鸡肉等；少生冷、苦寒、辛辣。<b>注意：蜂蜜、红糖、桂圆、荔枝虽属体质宜食，但含糖高，血糖管理期间请控糖优先、遵医嘱。</b>',
   breakfast: '原味燕麦＋无糖牛奶＋鸡蛋；或适量全麦面包＋鸡蛋＋黄瓜。份量按食量和医生建议调整。',
   takeout: '优先清蒸、白灼、少油炒；酱汁少放，不搭配含糖饮料。',
-  walkTail: '可以拆分完成，以能正常说完整句子、不明显气喘为宜；疲劳或不适时减量。',
-  water: '分次饮水，避免晚上集中补喝。没有限水要求时参考原计划，具体服从医嘱。',
+  walkTail: '可以拆分完成，以能正常说完整句子、不明显气喘为宜；疲劳或不适时减量。气虚质宜柔缓：可用八段锦等低强度运动替代或补充步行，避免憋气发力。',
+  water: '分次饮水，避免晚上集中补喝。没有限水要求时参考原计划，具体服从医嘱。肾结晶者建议保持充足饮水（如医嘱无限制）。',
   sleep: '固定起床时间，预留7～9小时睡眠；睡前30分钟结束工作。晚睡时逐步调整，不必一次提前很多。',
-  sedentary: '每坐约1小时，起身活动3分钟。',
-  relax: '按摩或缓慢呼吸任选一种，3～5分钟即可。'
+  sedentary: '每坐约1小时，起身活动3分钟；避免长时间保持同一姿势（骨质增生者尤甚），注意关节保暖。',
+  relax: '按摩、缓慢呼吸或穴位按揉任选一种，3～5分钟即可。'
 };
 var RELAX_TIPS = '印堂按揉：两眉之间的中点，干净指腹轻柔画圈2～3分钟，力度舒适、不疼；皮肤破损或红肿时跳过。仅作辅助放松。<br>'
-  + '缓慢呼吸：坐稳、肩膀放松，自然吸气、缓慢呼气，不憋气；头晕时停止。';
+  + '缓慢呼吸：坐稳、肩膀放松，自然吸气、缓慢呼气，不憋气；头晕时停止。<br>'
+  + '气海／关元按揉：气海在肚脐下2横指、关元在肚脐下4横指（前正中线上）。掌根轻柔按揉，每穴2～3分钟，每天1～2次；力度舒适、不疼。仅作辅助放松。';
 
-var G_TIMINGS = ['空腹','餐后2小时','餐前','睡前','随机'];
-var G_COLORS  = {'空腹':'#2f7d5b','餐后2小时':'#d97706','餐前':'#2563eb','睡前':'#7c3aed','随机':'#9ca3af'};
+var G_TIMINGS = ['空腹','餐后2小时','餐前','睡前','随机','糖化血红蛋白'];
+var G_COLORS  = {'空腹':'#2f7d5b','餐后2小时':'#d97706','餐前':'#2563eb','睡前':'#7c3aed','随机':'#9ca3af','糖化血红蛋白':'#0ea5e9'};
+var MOOD_TEXT = { low:'低落', neutral:'平稳', good:'愉快' };
 
 /* ========== 工具 ========== */
 function pad(n){ return n<10 ? '0'+n : ''+n; }
@@ -127,7 +129,7 @@ function blankDay(){
     skipped: {},
     waterMl:'', walkMin:'', sleepH:'',
     wakeTime:'', weight:'', waist:'',
-    stress:'', oneLine:'', did:'', tomorrow:'', note:'',
+    stress:'', mood:'', oneLine:'', did:'', tomorrow:'', note:'',
     glucose:[],
     done: undefined, submitTime:'', draftSavedAt:''
   };
@@ -137,12 +139,13 @@ function blankBase(){
     weight : { value:'89.5', date:null,   source:'体检报告', note:'' },
     glucose: { value:'7.0',  date:START,  source:'',        note:'' },
     waist  : { value:'',     date:null,   source:'',        note:'' },
+    constitution : { value:'', date:null, source:'',        note:'' },
     wakeTime:'07:00', bedTime:'23:00'
   };
 }
 function blankDB(){
   return {
-    version:3,
+    version:4,
     baseline:blankBase(),
     days:{}, weeks:{}, settings:{},
     cycles:[
@@ -159,7 +162,10 @@ function load(){
   var db = null;
   try{ var raw = localStorage.getItem(LS_KEY); if(raw) db = JSON.parse(raw); }catch(e){ db=null; }
   if(!db) return blankDB();
-  return migrate(db);
+  db = migrate(db);
+  /* 迁移后立即写回，保证 localStorage 中的版本号与结构与内存一致 */
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(db)); }catch(e){}
+  return db;
 }
 /* 旧数据迁移：字段缺失一律视为未记录，不补成 0 / false */
 function migrate(db){
@@ -208,6 +214,15 @@ function migrate(db){
   });
   if(!db.baseline.wakeTime) db.baseline.wakeTime='07:00';
   if(!db.baseline.bedTime)  db.baseline.bedTime='23:00';
+  /* v3 → v4：中医体质字段 */
+  var bc = db.baseline.constitution;
+  if(!bc || typeof bc!=='object') bc = {};
+  db.baseline.constitution = {
+    value:  bc.value  || '',
+    date:   bc.date   || null,
+    source: bc.source || '',
+    note:   bc.note   || ''
+  };
   db.weeks = db.weeks || {};
   db.settings = db.settings || {};
   if(!Array.isArray(db.settings.dismissedBackup)) db.settings.dismissedBackup=[];
@@ -221,6 +236,7 @@ function migrate(db){
   if(!Array.isArray(db.reviews)) db.reviews=[];
   if(!Array.isArray(db.monitorItems)) db.monitorItems=[];
   if(!Array.isArray(db.trash)) db.trash=[];
+  db.version = 4;
   return db;
 }
 
@@ -370,6 +386,15 @@ function renderToday(){
     }
   }
   if(plan.weigh){ html += '<div class="notice" style="margin-bottom:12px">⚖️ 今天建议<b>同条件称重</b>（晨起、如厕后、早餐前），并记录体重／腰围。</div>'; }
+  /* 就诊提醒（P0）：健康档案里有「报告建议就诊」标注且未归档的问题 */
+  if(isToday){
+    var careIssues = (DB.issues||[]).filter(function(i){ return i.seekCare && !i.archived; });
+    if(careIssues.length && DB.settings.dismissedCareAt!==today){
+      html += '<div class="banner care"><div class="banner-txt">🏥 就诊提醒：'+esc(careIssues.map(function(i){return i.name;}).join('、'))
+        + '。请按体检报告建议尽快到专科就诊——打卡不能替代就医。</div>'
+        + '<button class="banner-x" id="btn-view-care">查看</button><button class="banner-x" id="btn-dismiss-care">✕</button></div>';
+    }
+  }
   if(future){ html += '<div class="notice" style="margin-bottom:12px">🔒 该日期尚未到来，仅可查看计划，不能填写或提交。</div>'; }
   if(isToday && submitted && !editing){ html += '<div class="notice" style="margin-bottom:12px">✅ 今日已打卡 · '+esc(d.submitTime||'')+'。如需更正，点底部「修改」。</div>'; }
 
@@ -465,6 +490,13 @@ function renderToday(){
   html += '<details class="fold card" id="fold-mood"'+(uiState.mood?' open':'')+'><summary>心情记录'
     + '<span class="fold-sub">'+(hasNum(d.stress)?('压力 '+esc(d.stress)+'/10'):'默认折叠，可不填')+'</span></summary>';
   html += '<div class="field"><label>今日压力（0-10，可不填）</label><input type="number" min="0" max="10"'+dis+' id="f-stress" value="'+esc(d.stress)+'" placeholder="例如 6"></div>';
+  /* 情绪状态：气郁质追踪用，可选 */
+  html += '<div class="field"><label>情绪状态（可选）</label><div class="chip-row" id="mood-row">'
+    + ['low','neutral','good'].map(function(m){
+        var on = d.mood===m;
+        return '<button type="button" class="chip'+(on?' on':'')+'" data-mood="'+m+'"'+(locked?' disabled':'')+'>'+MOOD_TEXT[m]+'</button>';
+      }).join('')
+    + '</div></div>';
   html += '<div class="field"><label>一句话记录（可不填）</label><textarea'+dis+' id="f-oneLine" placeholder="例如：今天有点累，但把午饭吃踏实了">'+esc(d.oneLine)+'</textarea></div>';
   html += '<details class="fold" id="fold-moodmore"'+(uiState.moodMore?' open':'')+'><summary>更多记录</summary>'
     + '<div class="field"><label>今天我做到了</label><textarea'+dis+' id="f-did" placeholder="一两句话">'+esc(d.did)+'</textarea></div>'
@@ -628,6 +660,17 @@ function bindToday(el,d,t){
   if(next) next.addEventListener('click',function(){ viewDate=addDays(viewDate,1); editing=false; renderToday(); window.scrollTo(0,0); });
   if(back) back.addEventListener('click',function(){ viewDate=todayStr(); editing=false; renderToday(); window.scrollTo(0,0); });
 
+  /* 就诊提醒横幅 */
+  var vc=$('#btn-view-care',el);
+  if(vc) vc.addEventListener('click',function(){
+    var tab=$$('.tab').filter(function(b){ return b.getAttribute('data-tab')==='archive'; })[0];
+    if(tab) tab.click();
+  });
+  var dc=$('#btn-dismiss-care',el);
+  if(dc) dc.addEventListener('click',function(){
+    DB.settings.dismissedCareAt=todayStr(); save(); renderToday();
+  });
+
   if(future) return;   // 未来日期只读查看
 
   /* 进入可编辑状态后才真正落库，避免浏览日期就产生空记录 */
@@ -639,6 +682,17 @@ function bindToday(el,d,t){
       collectFields(el,d);
       var m=b.getAttribute('data-mode');
       if(m==='standard') delete d.mode; else d.mode=m;
+      save(); renderToday();
+    });
+  });
+
+  /* 情绪状态（可选） */
+  $$('[data-mood]',el).forEach(function(b){
+    b.addEventListener('click',function(){
+      collectFields(el,d);
+      var m=b.getAttribute('data-mood');
+      d.mood = (d.mood===m) ? '' : m;   /* 再点一次取消 */
+      d.draftSavedAt=hhmm(new Date());
       save(); renderToday();
     });
   });
@@ -890,6 +944,7 @@ function renderTrend(){
     });
     html += '</div>';
     html += '<div class="chart-note">仅按数值与时机呈现，不判断改善或恶化；不同来源的读数不直接互相换算。</div>';
+    html += '<div class="chart-note">一般参考目标（2型糖尿病控制目标，仅供参考，具体遵医嘱）：空腹 4.4～7.0；非空腹 &lt;10.0；糖化血红蛋白 &lt;7.0%。</div>';
   }
   html += '</div>';
 
@@ -911,7 +966,8 @@ function renderTrend(){
 
   el.innerHTML=html;
 
-  if($('#ch-weight',el)) drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg');
+  if($('#ch-weight',el)) drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg',
+    (bw!=null?[{ y:bw*0.95, color:'#d97706', label:'减重5%目标' }]:[]));
   if($('#ch-glucose',el)){
     var series=G_TIMINGS.filter(function(x){ return gSeries[x].length>0; })
       .map(function(x){ return {points:gSeries[x],color:G_COLORS[x]}; });
@@ -1023,7 +1079,7 @@ function bindWeeks(el){
 }
 
 /* 简易折线图（多序列） */
-function drawLine(canvas, series, unit){
+function drawLine(canvas, series, unit, hLines){
   var dpr=window.devicePixelRatio||1;
   var W=canvas.clientWidth, H=180;
   canvas.width=W*dpr; canvas.height=H*dpr;
@@ -1049,6 +1105,19 @@ function drawLine(canvas, series, unit){
     ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
     ctx.fillText(v.toFixed(1),4,y+3);
   }
+  /* 目标参考线（虚线，只在范围内绘制） */
+  (hLines||[]).forEach(function(hl){
+    if(hl==null || hl.y==null || isNaN(hl.y)) return;
+    if(hl.y<min || hl.y>max) return;
+    var y=Y(hl.y);
+    ctx.save();
+    ctx.strokeStyle=hl.color||'#d97706'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=hl.color||'#d97706'; ctx.font='9px sans-serif'; ctx.textAlign='right';
+    ctx.fillText(hl.label||'', W-padR-2, y-3);
+    ctx.restore();
+  });
   series.forEach(function(s){
     if(!s.points.length) return;
     ctx.strokeStyle=s.color; ctx.lineWidth=2; ctx.beginPath();
@@ -1082,6 +1151,17 @@ function renderSetting(){
   html += baseBlock('weight','体重','kg','89.5','s-weight');
   html += baseBlock('glucose','空腹血糖','mmol/L','7.0','s-glucose');
   html += baseBlock('waist','腰围','cm','98','s-waist');
+  /* 中医体质（v4 新增） */
+  html += '<div class="base-block"><div class="base-name">中医体质（测评）</div>'
+    + '<div class="field-row">'
+    + '<div class="field"><label>体质结论</label><input type="text" id="s-const-val" value="'+esc(b.constitution.value)+'" placeholder="例如：气虚质为主，兼夹气郁质"></div>'
+    + '<div class="field"><label>测评日期</label><input type="date" id="s-const-date" value="'+esc(b.constitution.date||'')+'"></div>'
+    + '</div>'
+    + '<div class="field-row">'
+    + '<div class="field"><label>来源</label><input type="text" id="s-const-src" value="'+esc(b.constitution.source)+'" placeholder="如：体检机构中医测评"></div>'
+    + '<div class="field"><label>备注（如复评频率）</label><input type="text" id="s-const-note" value="'+esc(b.constitution.note)+'" placeholder="例如：每3个月复评一次"></div>'
+    + '</div>'
+    + '<div class="base-cur">当前：'+esc(b.constitution.value||'—')+'</div></div>';
   html += '<div class="field-row">'
     + '<div class="field"><label>目标起床时间</label><input type="time" id="s-wake" value="'+esc(b.wakeTime)+'"></div>'
     + '<div class="field"><label>目标上床时间</label><input type="time" id="s-bed" value="'+esc(b.bedTime)+'"></div>'
@@ -1096,6 +1176,21 @@ function renderSetting(){
     + '<input type="file" id="file-import" accept=".json" style="display:none">'
     + '<div class="setting-row"><div>清空全部数据<div class="desc">不可恢复，需要二次确认，请先导出备份</div></div><button class="btn danger small" id="btn-clear">清空</button></div>'
     + '</div>';
+
+  /* 食谱参考（P2）：来自体检报告营养方案的通用整理，供参考 */
+  html += '<details class="fold card"><summary>食谱参考 <span class="fold-sub">气虚质 · 示例，不替代营养科方案</span></summary>'
+    + '<div class="chart-note" style="text-align:left;margin:2px 0 8px">整理自体检报告营养调理部分，供参考。茶饮含药食同源成分，<b>肝功能异常期间请先咨询医生</b>再决定是否饮用。含糖食材已尽量避开或标注，血糖管理期间控糖优先。</div>'
+    + '<table class="recipe-table"><thead><tr><th></th><th>早餐</th><th>午餐</th><th>晚餐</th><th>当日茶饮</th></tr></thead><tbody>'
+    + '<tr><td>一</td><td>燕麦牛奶粥＋鸡蛋</td><td>杂粮饭＋清蒸鲈鱼＋西兰花</td><td>小米南瓜粥＋凉拌菠菜＋少量牛肉</td><td>人参红枣茶</td></tr>'
+    + '<tr><td>二</td><td>全麦面包＋鸡蛋＋黄瓜</td><td>糙米饭＋白灼虾＋炒油菜</td><td>山药粥＋清炒莴笋＋豆腐</td><td>黄芪太子参茶</td></tr>'
+    + '<tr><td>三</td><td>无糖豆浆＋蒸蛋羹＋全麦馒头</td><td>二米饭＋香菇蒸鸡＋冬瓜汤</td><td>燕麦粥＋清蒸鳕鱼＋拌木耳</td><td>红枣茶（血糖高者慎加桂圆）</td></tr>'
+    + '<tr><td>四</td><td>燕麦牛奶＋水煮蛋</td><td>荞麦面＋瘦肉＋青菜</td><td>小米粥＋少量卤牛肉＋清炒时蔬</td><td>党参黄芪茶</td></tr>'
+    + '<tr><td>五</td><td>全麦三明治＋牛奶</td><td>糙米饭＋清蒸鱼＋芦笋</td><td>无糖八宝粥＋白灼菜心＋鸡蛋</td><td>枸杞黄芪茶</td></tr>'
+    + '<tr><td>六</td><td>燕麦粥＋鸡蛋＋黄瓜</td><td>杂粮饭＋白切鸡（去皮）＋菠菜</td><td>山药瘦肉汤＋青菜</td><td>人参红枣茶</td></tr>'
+    + '<tr><td>日</td><td>无糖酸奶＋全麦面包＋鸡蛋</td><td>糙米饭＋清蒸虾＋西兰花</td><td>小米粥＋豆腐＋拌莴笋</td><td>黄芪红枣茶</td></tr>'
+    + '</tbody></table>'
+    + '<div class="chart-note" style="text-align:left;margin-top:8px">气虚质宜食（补气为主）：粮食类如粳米、小米、糯米、燕麦；蔬菜如山药、南瓜、胡萝卜、香菇；肉禽如牛肉、鸡肉、鲫鱼；豆类如豆腐、黄豆。不宜生冷苦寒、辛辣刺激。份量按每日约1300～1400千卡把握，具体以营养科方案为准。</div>'
+    + '</details>';
 
   html += '<div class="card"><div class="card-title">说明</div>'
     + '<div class="tip-body" style="font-size:.82rem;color:var(--text-2);line-height:1.8">'
@@ -1124,6 +1219,8 @@ function renderSetting(){
     });
     b.wakeTime=$('#s-wake',el).value;
     b.bedTime=$('#s-bed',el).value;
+    b.constitution={ value:$('#s-const-val',el).value, date:$('#s-const-date',el).value||null,
+      source:$('#s-const-src',el).value, note:$('#s-const-note',el).value };
     save(); renderTrend(); renderToday(); toast('基线已保存');
   });
 
@@ -1279,7 +1376,7 @@ function toCSV(){
     '久坐中断(完成/未完成/未记录)','放松(完成/未完成/未记录)','放松是否跳过','尽量按时休息(完成/未完成/未记录)',
     '起床时间(当天实际)','体重(kg)','腰围(cm)',
     '血糖_数值(mmol/L)','血糖_时机','血糖_测量方式','血糖_用药',
-    '压力(0-10)','一句话记录','今天我做到了','明天最重要的一件事','备注']];
+    '压力(0-10)','情绪状态','一句话记录','今天我做到了','明天最重要的一件事','备注']];
   Object.keys(DB.days).sort().forEach(function(ds){
     var d=DB.days[ds];
     var gl=(d.glucose||[]);
@@ -1296,7 +1393,7 @@ function toCSV(){
       gl.map(function(g){return g.timing;}).join('；'),
       gl.map(function(g){return g.method||'';}).join('；'),
       gl.map(function(g){return g.meds||'';}).join('；'),
-      hasNum(d.stress)?num(d.stress):'', d.oneLine||'', d.did||'', d.tomorrow||'', d.note||'']);
+      hasNum(d.stress)?num(d.stress):'', d.mood?(MOOD_TEXT[d.mood]||''):'', d.oneLine||'', d.did||'', d.tomorrow||'', d.note||'']);
   });
   return '\ufeff'+rows.map(function(r){ return r.map(csvCell).join(','); }).join('\n');
 }

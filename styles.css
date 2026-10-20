@@ -453,3 +453,27 @@ details.tips>summary::-webkit-details-marker{display:none}
 
 /* 小 chip */
 .chip-sm{font-size:.7rem;padding:2px 8px;margin:2px}
+
+/* ===== v9：就诊提醒/情绪/化验模板/食谱 ===== */
+.banner.care{background:#fef2f2;border-color:#fecaca}
+.banner.care .banner-txt{color:#991b1b}
+.aic-care{
+  display:flex;align-items:flex-start;gap:6px;
+  font-size:.8rem;color:#991b1b;background:#fef2f2;
+  border:1px solid #fecaca;border-radius:8px;padding:8px 10px;
+  line-height:1.5;margin-bottom:10px;
+}
+button.chip{
+  cursor:pointer;border:1px solid var(--border);background:#fff;
+  border-radius:14px;font-size:.72rem;padding:3px 10px;color:var(--text-2);
+  font-family:inherit;
+}
+button.chip.on{background:var(--primary-light);border-color:var(--primary);color:var(--primary);font-weight:600}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px}
+.recipe-table{width:100%;border-collapse:collapse;font-size:.72rem;margin-top:4px}
+.recipe-table th,.recipe-table td{
+  border:1px solid var(--border);padding:5px 6px;text-align:left;
+  vertical-align:top;line-height:1.45;min-width:0;
+}
+.recipe-table th{background:var(--bg);font-weight:600;white-space:nowrap}
+.recipe-table td:first-child{white-space:nowrap;color:var(--text-3);text-align:center}

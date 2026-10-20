@@ -24,7 +24,7 @@ function blankIssue(){
     id: null, name:'', type:'健康问题', currentStatus:'', keywords:[], source:'',
     occurDate:null, monitorIds:[], cycleGoal:'', linkedActions:[],
     nextReviewDate:null, reviewDate:null,
-    focus:false, archived:false, archivedAt:null, archivedReason:'',
+    seekCare:'', focus:false, archived:false, archivedAt:null, archivedReason:'',
     createdAt: nowISO(), updatedAt: nowISO()
   };
 }
@@ -305,13 +305,18 @@ function renderOverview(){
   var idx = A.dayIndex(A.todayStr());
   var tot = A.cycleTotal();
   var focusIssue = A.DB.issues.find(function(i){ return i.focus && !i.archived; });
+  var b = A.DB.baseline || {};
+  var cons = b.constitution || {};
   var html='';
   html += '<div class="card archive-overview">';
   html += '<div class="card-title">本轮概况 <span class="sub">'+A.cycleLabel()+'</span></div>';
   html += '<div class="ao-row"><div><span class="ao-label">当前周期</span><div class="ao-val">'+A.cycleLabel()+'</div></div>';
   html += '<div><span class="ao-label">第几天</span><div class="ao-val">'+(idx>=1 && idx<=tot?('第 '+idx+' 天 / '+tot+' 天'):idx<1?'尚未开始':'已完成')+'</div></div>';
   html += '<div><span class="ao-label">重点问题</span><div class="ao-val">'+(focusIssue?A.esc(focusIssue.name):'<span class="muted">未设置</span>')+'</div></div>';
-  html += '<div><span class="ao-label">下次复盘</span><div class="ao-val">'+(c.reviewDate?A.dateLabel(c.reviewDate):'<span class="muted">待设置</span>')+'</div></div></div>';
+  html += '<div><span class="ao-label">下次复盘</span><div class="ao-val">'+(c.reviewDate?A.dateLabel(c.reviewDate):'<span class="muted">待设置</span>')+'</div></div>';
+  html += '<div><span class="ao-label">中医体质</span><div class="ao-val">'+(cons.value?A.esc(cons.value):'<span class="muted">未记录</span>')+'</div>'
+    + (cons.date||cons.note?'<div class="ao-item-kws">'+(cons.date?A.dateLabel(cons.date):'')+(cons.note?(cons.date?' · ':'')+A.esc(cons.note):'')+'</div>':'')+'</div>';
+  html += '</div>';
   html += '<div class="chart-note" style="margin-top:8px">本轮关注重点的变化，不要求所有问题在一个周期内解决。</div>';
   html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
   html += '<button class="btn small ghost" id="btn-cycle-change">调整周期</button>';
@@ -338,6 +343,10 @@ function renderIssueCard(issue){
   var monitors = A.DB.monitorItems.filter(function(m){ return Array.isArray(issue.monitorIds) && issue.monitorIds.indexOf(m.id)>=0; });
   var events = A.DB.events.filter(function(ev){ return (ev.issueIds||[]).indexOf(issue.id)>=0; }).sort(function(a,b){ return a.date>b.date?-1:1; });
   var html='<div class="archive-issue-card" data-issue-id="'+issue.id+'">';
+  /* 就诊提醒（P0）：报告建议专科就诊的问题，卡片顶部醒目标注 */
+  if(issue.seekCare){
+    html += '<div class="aic-care">🏥 报告建议就诊：'+A.esc(issue.seekCare)+'（打卡不能替代就医）</div>';
+  }
   html += '<div class="aic-head"><div class="aic-title">'+A.esc(issue.name)
     + (issue.focus?'<span class="aic-badge">本轮重点</span>':'')
     + '</div><div class="aic-actions">'
@@ -490,7 +499,13 @@ function renderOtherIssues(){
 /* ========== 基本资料与来源（折叠） ========== */
 function renderBasicInfo(){
   var b = A.DB.baseline;
+  var cons = b.constitution || {};
   var html='<details class="fold"><summary>基本资料与来源</summary>';
+  html += '<div class="base-block"><div class="base-cur"><div>中医体质</div>'
+    + '<div class="base-row">'+A.esc(cons.value||'待补充')+'</div>'
+    + '<div class="base-row muted">来源：'+A.esc(cons.source||'待补充')+' · 测评日期：'+(cons.date?A.dateLabel(cons.date):'待补充')+'</div>'
+    + (cons.note?'<div class="base-row muted">备注：'+A.esc(cons.note)+'</div>':'')
+    + '</div></div>';
   html += '<div class="base-block"><div class="base-cur"><div>体重</div>'
     + '<div class="base-row">'+A.esc(b.weight.value||'待补充')+' kg</div>'
     + '<div class="base-row muted">来源：'+A.esc(b.weight.source||'待补充')+' · 测量日期：'+(b.weight.date?A.dateLabel(b.weight.date):'待补充')+'</div>'
@@ -626,6 +641,9 @@ function openIssueDialog(id){
       + A.esc(m.name)+'</label>';
   }).join('');
   var html='<div class="modal-line">'+(isNew?'新增健康问题':'编辑健康问题')+'</div>';
+  if(/息肉/.test(issue.name||'')){
+    html += '<div class="chart-note" style="text-align:left;margin-bottom:8px">息肉随访节奏（供参考，遵医嘱）：≤5mm 且无危险因素 → 一般无需随访；6～9mm → 6个月、1年、2年各复查一次超声；≥10mm → 建议肝胆外科评估。先把<b>息肉尺寸</b>补进「当前情况」，方便判断。</div>';
+  }
   html += '<div class="field"><label>名称（必填）</label><input id="q-name" value="'+A.esc(issue.name)+'" placeholder="例如：血糖管理" /></div>';
   html += '<div class="field"><label>类型</label><select id="q-type">'
     + ISSUE_TYPES.map(function(t){ return '<option '+(issue.type===t?'selected':'')+'>'+t+'</option>'; }).join('')
@@ -638,7 +656,8 @@ function openIssueDialog(id){
   html += '<div class="field"><label>发生/检查日期（未知可留空）</label><input id="q-occur" type="date" value="'+(issue.occurDate||'')+'" /></div></div>';
   html += '<div class="field-row"><div class="field"><label>下次回顾日期</label><input id="q-next-review" type="date" value="'+(issue.nextReviewDate||'')+'" /></div>';
   html += '<div class="field"><label>医嘱复查日期</label><input id="q-review" type="date" value="'+(issue.reviewDate||'')+'" /></div></div>';
-  html += '<div class="field"><label>本轮目标</label><textarea id="q-goal" placeholder="例如：空腹血糖控制在 7 mmol/L 以下">'+A.esc(issue.cycleGoal)+'</textarea></div>';
+  html += '<div class="field"><label>本轮目标</label><textarea id="q-goal" placeholder="例如：3～6个月减重5%（报告建议范围5%～15%）；或空腹血糖控制在4.4～7.0">'+A.esc(issue.cycleGoal)+'</textarea></div>';
+  html += '<div class="field"><label>报告建议就诊（可选，填专科名称，保存后卡片顶部和今日页会提醒）</label><input id="q-seekcare" value="'+A.esc(issue.seekCare||'')+'" placeholder="例如：内分泌专科（血糖待确诊）、心血管专科、消化科查明肝功能异常原因" /></div>';
   html += '<div class="field"><label>关联计划行动</label><div id="q-linked" style="display:flex;flex-wrap:wrap;gap:4px;max-width:100%">';
   Object.keys(ACTION_MAP).forEach(function(k){
     html += '<label style="display:flex;align-items:center;gap:4px;font-size:.82rem;margin-right:10px"><input type="checkbox" value="'+k+'" '
@@ -647,11 +666,19 @@ function openIssueDialog(id){
   html += '</div></div>';
   html += '<div class="field"><label>监测项目（从已有定义里挑，或新建）</label>';
   if(A.DB.monitorItems.length===0){
-    html += '<div class="chart-note">暂无监测项目。保存后可点「添加记录」自动创建，或手动新建。</div>';
+    html += '<div class="chart-note">暂无监测项目。可点下方「＋新建监测项目」，用快捷模板一键添加。</div>';
   } else {
-    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'+monitorOptions+'</div>';
+    html += '<div id="q-monitor-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'+monitorOptions+'</div>';
   }
-  html += '<button class="btn small ghost" id="btn-new-monitor" style="margin-top:8px">＋新建监测项目</button></div>';
+  html += '<button type="button" class="btn small ghost" id="btn-new-monitor" style="margin-top:8px">＋新建监测项目</button>'
+    + '<div id="q-new-monitor" style="display:none;margin-top:8px">'
+    + '<div class="field-row"><div class="field"><input id="q-nm-name" placeholder="项目名（如 空腹血糖）"></div>'
+    + '<div class="field"><input id="q-nm-unit" placeholder="单位（如 mmol/L）"></div></div>'
+    + '<div class="chip-row">'
+    + [['空腹血糖','mmol/L'],['餐后2小时血糖','mmol/L'],['糖化血红蛋白','%'],['总胆固醇','mmol/L'],['低密度脂蛋白胆固醇','mmol/L'],['甘油三酯','mmol/L'],['ALT（谷丙转氨酶）','U/L'],['AST（谷草转氨酶）','U/L'],['GGT（谷氨酰转肽酶）','U/L'],['血尿酸','μmol/L'],['体重','kg'],['腰围','cm']]
+      .map(function(x){ return '<button type="button" class="chip" data-nm="'+x[0]+'" data-nmu="'+x[1]+'">'+x[0]+'</button>'; }).join('')
+    + '</div>'
+    + '<button type="button" class="btn small secondary" id="q-nm-add" style="margin-top:6px">添加该监测项目</button></div></div>';
   html += '<div class="field"><label><input type="checkbox" id="q-focus" '+(issue.focus?'checked':'')+'> 设为本轮重点</label></div>';
 
   A.showModal({
@@ -681,13 +708,13 @@ function openIssueDialog(id){
           nextReviewDate: A.$('#q-next-review').value || null,
           reviewDate: A.$('#q-review').value || null,
           cycleGoal: A.$('#q-goal').value,
+          seekCare: A.$('#q-seekcare').value.trim(),
           linkedActions: linked,
           monitorIds: monitors,
           focus: A.$('#q-focus').checked
         };
         if(isNew){
           issue = addIssue(patch);
-          /* 新建监测项目按钮：后续可补 */
         } else {
           updateIssue(id, patch);
         }
@@ -700,6 +727,42 @@ function openIssueDialog(id){
       }}
     ]
   });
+
+  /* 新建监测项目：内联迷你表单 + 快捷模板 */
+  var nmToggle=A.$('#btn-new-monitor');
+  if(nmToggle) nmToggle.addEventListener('click',function(){
+    var box=A.$('#q-new-monitor');
+    if(box) box.style.display = (box.style.display==='none')?'block':'none';
+  });
+  A.$$('#modal .chip[data-nm]').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      var n=A.$('#q-nm-name'), u=A.$('#q-nm-unit');
+      if(n) n.value=ch.getAttribute('data-nm');
+      if(u) u.value=ch.getAttribute('data-nmu');
+    });
+  });
+  var nmAdd=A.$('#q-nm-add');
+  if(nmAdd) nmAdd.addEventListener('click',function(){
+    var n=A.$('#q-nm-name'), u=A.$('#q-nm-unit');
+    var name=n?n.value.trim():'';
+    if(!name){ A.toast('请先填项目名或点快捷模板'); return; }
+    var mi=addMonitorItem({ name:name, kind:'num', unit:u?u.value.trim():'' });
+    var list=A.$('#q-monitor-list');
+    if(!list){
+      /* 无列表时先创建容器 */
+      var wrap=document.createElement('div');
+      wrap.id='q-monitor-list';
+      wrap.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin-top:4px';
+      nmAdd.parentNode.insertBefore(wrap, nmAdd.parentNode.querySelector('#q-new-monitor'));
+      list=A.$('#q-monitor-list');
+    }
+    var lab=document.createElement('label');
+    lab.style.cssText='display:flex;align-items:center;gap:6px;font-size:.85rem;margin-right:14px';
+    lab.innerHTML='<input type="checkbox" value="'+mi.id+'" checked>'+A.esc(mi.name);
+    list.appendChild(lab);
+    if(n){ n.value=''; } if(u){ u.value=''; }
+    A.toast('已添加「'+mi.name+'」，保存问题后生效');
+  });
 }
 
 /* ========== 编辑 / 添加事件弹窗 ========== */
@@ -710,12 +773,17 @@ function openEventDialog(ev){
     return '<label style="display:flex;align-items:center;gap:6px;font-size:.85rem;margin-right:14px"><input type="checkbox" value="'+i.id+'" '
       + ((obj.issueIds||[]).indexOf(i.id)>=0?'checked':'')+'>'+A.esc(i.name)+'</label>';
   }).join('');
-  var html='<div class="field-row"><div class="field"><label>类型</label><select id="q-ev-type">'
+  var html='<div class="chart-note" style="text-align:left;margin-bottom:8px">化验复查建议<b>按单项录入</b>：描述写指标名（如 总胆固醇、ALT），填数值和单位；低频项目（血脂、肝功、糖化、尿酸）复查时录入即可。点快捷模板可自动填名称和单位。</div>'
+    + '<div class="chip-row" style="margin-bottom:10px">'
+    + [['总胆固醇','mmol/L'],['低密度脂蛋白胆固醇','mmol/L'],['甘油三酯','mmol/L'],['高密度脂蛋白胆固醇','mmol/L'],['ALT','U/L'],['AST','U/L'],['GGT','U/L'],['糖化血红蛋白','%'],['血尿酸','μmol/L']]
+      .map(function(x){ return '<button type="button" class="chip lab-chip" data-lab="'+x[0]+'" data-labu="'+x[1]+'">'+x[0]+'</button>'; }).join('')
+    + '</div>'
+    + '<div class="field-row"><div class="field"><label>类型</label><select id="q-ev-type">'
     + EVENT_TYPES.map(function(t){ return '<option '+(obj.type===t?'selected':'')+'>'+t+'</option>'; }).join('')
     + '</select></div><div class="field"><label>日期</label><input id="q-ev-date" type="date" value="'+(obj.date||A.todayStr())+'" />'
     + '<label style="display:flex;align-items:center;gap:4px;font-size:.78rem;color:#6b7280;margin-top:4px"><input type="checkbox" id="q-ev-approx" '+(obj.approxDate?'checked':'')+'> 大致日期</label></div></div>';
   html += '<div class="field"><label>关联健康问题</label><div id="q-ev-issues" style="display:flex;flex-wrap:wrap;gap:4px">'+issueOpts+'</div></div>';
-  html += '<div class="field"><label>描述</label><textarea id="q-ev-desc">'+A.esc(obj.description)+'</textarea></div>';
+  html += '<div class="field"><label>指标／事件描述</label><textarea id="q-ev-desc">'+A.esc(obj.description)+'</textarea></div>';
   html += '<div class="field-row"><div class="field"><label>数值（可选）</label><input id="q-ev-value" value="'+(obj.value!=null?obj.value:'')+'" /></div>'
     + '<div class="field"><label>单位</label><input id="q-ev-unit" value="'+A.esc(obj.valueUnit)+'" placeholder="mmol/L / kg / mm 等" /></div></div>';
   html += '<div class="field-row"><div class="field"><label>来源</label><input id="q-ev-source" value="'+A.esc(obj.source)+'" /></div>'
@@ -748,6 +816,15 @@ function openEventDialog(ev){
       }}
     ]
   });
+
+  /* 化验快捷模板：自动填名称和单位 */
+  A.$$('#modal .lab-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      var d=A.$('#q-ev-desc'), u=A.$('#q-ev-unit');
+      if(d) d.value=ch.getAttribute('data-lab');
+      if(u) u.value=ch.getAttribute('data-labu');
+    });
+  });
 }
 
 /* ========== 问题详情弹窗 ========== */
@@ -756,6 +833,12 @@ function openIssueDetail(id){
   if(!issue) return;
   var evs = A.DB.events.filter(function(e){ return (e.issueIds||[]).indexOf(id)>=0; }).sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
   var html='<div class="modal-line"><b>'+A.esc(issue.name)+'</b> · '+A.esc(issue.type)+(issue.focus?' · 本轮重点':'')+'</div>';
+  if(issue.seekCare){
+    html += '<div class="aic-care" style="margin-top:8px">🏥 报告建议就诊：'+A.esc(issue.seekCare)+'（打卡不能替代就医）</div>';
+  }
+  if(/息肉/.test(issue.name||'')){
+    html += '<div class="chart-note" style="text-align:left;margin-top:8px">息肉随访节奏（供参考，遵医嘱）：≤5mm 且无危险因素 → 一般无需随访；6～9mm → 6个月、1年、2年各复查一次超声；≥10mm → 建议肝胆外科评估。</div>';
+  }
   html += '<div class="chart-note" style="margin:6px 0"><b>当前情况：</b>'+A.esc(issue.currentStatus||'待记录')+'</div>';
   html += '<div class="chart-note"><b>来源：</b>'+A.esc(issue.source||'待补充')+' <b>· 发生/检查日期：</b>'+(issue.occurDate?A.dateLabel(issue.occurDate):'待补充')+'</div>';
   html += '<div class="chart-note"><b>本轮目标：</b>'+A.esc(issue.cycleGoal||'待设置')+'</div>';
