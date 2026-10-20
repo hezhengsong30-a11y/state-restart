@@ -69,22 +69,9 @@ main{max-width:640px;margin:0 auto;padding:14px 16px}
 
 .draft-badge.ok{background:var(--primary-light);color:var(--primary);border-color:#cde6da}
 
-/* 草稿保存状态 */
-.draft-status{
-  text-align:center;font-size:.75rem;color:var(--text-3);margin:2px 0 8px;
-}
-.draft-status.saved{color:var(--primary)}
-
 /* 双按钮行 */
 .btn-row{display:flex;gap:10px}
 .btn-row .btn{flex:1;width:auto}
-
-/* 已提交状态条 */
-.submitted-bar{
-  text-align:center;font-size:.82rem;color:var(--primary);font-weight:600;
-  background:var(--primary-light);border:1px solid #cde6da;border-radius:10px;
-  padding:11px;margin-bottom:10px;
-}
 
 /* 只读态 */
 .check-row.locked .box{cursor:default;opacity:.85}
@@ -187,7 +174,7 @@ canvas.chart{width:100%;height:180px;display:block}
 
 /* 血糖记录条目 */
 .glucose-item{
-  display:flex;align-items:center;gap:8px;padding:8px 10px;
+  display:flex;align-items:center;gap:8px;padding:8px 10px;flex-wrap:wrap;
   background:var(--bg);border-radius:8px;margin-bottom:6px;font-size:.85rem;
 }
 .glucose-item .val{font-weight:700;color:var(--primary)}
@@ -198,10 +185,6 @@ canvas.chart{width:100%;height:180px;display:block}
 .notice{font-size:.78rem;color:var(--text-2);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;line-height:1.6}
 .notice.red{background:#fef2f2;border-color:#fecaca;color:#991b1b}
 .empty{text-align:center;color:var(--text-3);font-size:.85rem;padding:28px 0}
-
-/* 心情记录 */
-.mood-quote{font-size:.82rem;color:var(--text-2);background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.7}
-.mood-quote b{color:var(--text)}
 
 .toast{
   position:fixed;left:50%;bottom:60px;transform:translateX(-50%) translateY(20px);
@@ -221,3 +204,191 @@ canvas.chart{width:100%;height:180px;display:block}
 @media (min-width:641px){
   html{font-size:16px}
 }
+
+/* ===== v2 新增 ===== */
+/* 顶部提示条（可关闭） */
+.banner{
+  display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--text-2);
+  background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:12px;line-height:1.6;
+}
+.banner-txt{flex:1}
+.banner-x{border:none;background:none;color:var(--text-3);font-size:.95rem;cursor:pointer;padding:0 2px;line-height:1}
+
+.hero-stats-2{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.25)}
+.hero-sub{font-size:.72rem;opacity:.8;margin-top:8px}
+
+/* 模式切换 */
+.mode-switch{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 12px;margin-bottom:6px;box-shadow:var(--shadow);
+}
+.mode-label{font-size:.85rem;color:var(--text-2);font-weight:500}
+.seg-switch{display:flex;background:var(--bg);border-radius:8px;padding:3px;gap:3px}
+.seg-btn{
+  border:none;background:none;padding:7px 14px;border-radius:6px;
+  font-size:.82rem;font-weight:500;color:var(--text-2);cursor:pointer;font-family:inherit;
+}
+.seg-btn.on{background:var(--primary);color:#fff;font-weight:600}
+.seg-btn:disabled{opacity:.55;cursor:default}
+
+/* 三态勾选框 */
+.check-row .box.off{background:#f3f4f6;border-color:#d1d5db;color:var(--text-3);font-size:.8rem}
+.check-row .box.skip{background:none;border-style:dashed;border-color:var(--primary);color:var(--primary);font-size:.8rem}
+.tri-hint{font-size:.7rem;color:var(--text-3);margin-top:4px}
+.link-btn{
+  border:none;background:none;color:var(--primary);font-size:.72rem;
+  text-decoration:underline;cursor:pointer;padding:0;margin-top:4px;font-family:inherit;
+}
+
+/* 数值型行动行 */
+.num-row{padding:11px 0;border-bottom:1px solid var(--border)}
+.num-row:last-child{border-bottom:none}
+.num-row.locked{opacity:.9}
+.num-head{display:flex;align-items:center;gap:10px}
+.num-label{flex:1;font-size:.9rem}
+.num-input{position:relative;width:132px;flex-shrink:0}
+.num-input input{
+  width:100%;padding:8px 40px 8px 10px;border:1px solid var(--border);border-radius:8px;
+  font-size:.9rem;font-family:inherit;
+}
+.num-input .unit{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:.72rem;color:var(--text-3)}
+.num-state{font-size:.72rem;color:var(--text-3);margin-top:4px}
+.num-state.ok{color:var(--primary);font-weight:600}
+
+/* 快捷按钮 */
+.chip-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.chip{
+  border:1px solid #cde6da;background:var(--primary-light);color:var(--primary);
+  border-radius:14px;padding:5px 11px;font-size:.75rem;font-weight:500;cursor:pointer;font-family:inherit;
+}
+.chip:active{background:#d6ebdf}
+.chip.undo{border-color:var(--border);background:#fff;color:var(--text-2)}
+.chip:disabled{opacity:.45;cursor:default}
+
+/* 折叠区 */
+details.fold{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:12px}
+details.fold>summary{
+  cursor:pointer;padding:14px 16px;font-size:.95rem;font-weight:600;list-style:none;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:'▾';color:var(--text-3);font-size:.85rem;font-weight:400;transition:transform .15s}
+details.fold[open]>summary::after{transform:rotate(180deg)}
+details.fold>summary .fold-sub{font-size:.75rem;color:var(--text-3);font-weight:400;margin-left:auto}
+details.fold>*:not(summary){margin-left:16px;margin-right:16px}
+details.fold>*:not(summary):last-child{margin-bottom:16px}
+details.fold.card{padding:0}
+details.fold .fold{background:var(--bg);box-shadow:none;margin-top:4px}
+details.fold .fold>summary{padding:10px 12px;font-size:.85rem}
+
+/* 查看方法 */
+details.tips{margin-top:6px;background:none;border:none;box-shadow:none}
+details.tips>summary{font-size:.75rem;color:var(--primary);cursor:pointer;list-style:none;text-decoration:underline}
+details.tips>summary::-webkit-details-marker{display:none}
+.tip-body{
+  font-size:.78rem;color:var(--text-2);background:var(--bg);border-radius:8px;
+  padding:10px 12px;margin-top:6px;line-height:1.75;
+}
+.tip-body b{color:var(--text)}
+.tip-sub{font-size:.75rem;font-weight:600;color:var(--text);margin:8px 0 2px}
+
+/* 血糖分组 */
+.g-group{font-size:.75rem;font-weight:600;color:var(--text-2);margin:10px 0 6px}
+.g-list{margin-top:8px}
+.tag.warn{border-color:#fde68a;background:#fffbeb;color:var(--accent)}
+
+/* 称重突出 */
+.weigh-box{
+  background:var(--primary-light);border:1px solid #cde6da;border-radius:10px;
+  padding:12px;margin-top:10px;
+}
+.weigh-title{font-size:.82rem;font-weight:600;color:var(--primary);margin-bottom:8px}
+
+/* 今日数值汇总 */
+.num-summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.ns-item{
+  flex:1;min-width:86px;background:var(--bg);border-radius:8px;padding:8px 10px;
+  font-size:.72rem;color:var(--text-3);
+}
+.ns-item b{display:block;font-size:.85rem;color:var(--text-2);margin-top:2px}
+.ns-item.ok b{color:var(--primary)}
+
+/* 保存状态区 */
+.save-area{margin-top:4px}
+.save-status{
+  text-align:center;font-size:.78rem;color:var(--text-3);margin-bottom:9px;font-weight:500;
+}
+.save-status.saved{color:var(--primary)}
+.save-status.ok{color:var(--primary);font-weight:600}
+.save-status.failed{color:var(--danger);font-weight:600}
+
+/* 只读数值输入 */
+.num-input input:disabled{background:var(--bg);color:var(--text);opacity:.9}
+
+/* 计划页状态 */
+.plan-state{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.chip-state{font-size:.68rem;border-radius:4px;padding:1px 7px;font-weight:500;border:1px solid var(--border);color:var(--text-2);background:#fff}
+.chip-state.s-done{background:var(--primary-light);border-color:#cde6da;color:var(--primary)}
+.chip-state.s-draft{background:#fffbeb;border-color:#fde68a;color:var(--accent)}
+.chip-state.s-future{background:var(--bg);color:var(--text-3)}
+.chip-state.s-todo{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+.chip-time{font-size:.68rem;color:var(--text-3)}
+
+/* 趋势周块 */
+.week-block{border-top:1px solid var(--border);padding-top:12px;margin-top:12px}
+.week-block:first-child{border-top:none;margin-top:0;padding-top:0}
+.week-head{font-size:.85rem;margin-bottom:8px}
+.week-head span{color:var(--text-3);font-weight:400;font-size:.75rem;margin-left:4px}
+.week-days{display:flex;gap:4px;margin-bottom:8px}
+.wday{
+  flex:1;text-align:center;border-radius:6px;padding:6px 2px;font-size:.68rem;
+  background:var(--bg);color:var(--text-3);border:1px solid transparent;
+}
+.wday span{display:block;font-weight:700;font-size:.78rem}
+.wday i{font-style:normal;font-size:.62rem}
+.wday.done{background:var(--primary);color:#fff}
+.wday.draft{background:var(--primary-light);color:var(--primary);border-color:#cde6da}
+.wday.empty{background:var(--bg);color:var(--text-3);border-style:dashed;border-color:var(--border)}
+.week-metrics{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.wm{flex:1;min-width:96px;background:var(--bg);border-radius:8px;padding:7px 9px}
+.wm b{display:block;font-size:.85rem;color:var(--text)}
+.wm span{font-size:.68rem;color:var(--text-3)}
+.mode-cols{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.mode-col{flex:1;min-width:150px;border:1px solid var(--border);border-radius:8px;padding:9px 10px}
+.mode-col-title{font-size:.78rem;font-weight:600;margin-bottom:6px}
+.mode-col-title span{color:var(--text-3);font-weight:400;font-size:.68rem}
+.mode-empty{font-size:.72rem;color:var(--text-3)}
+.ms-row{display:flex;justify-content:space-between;gap:8px;font-size:.72rem;padding:3px 0;border-bottom:1px dashed var(--border)}
+.ms-row:last-child{border-bottom:none}
+.ms-name{color:var(--text-2);flex-shrink:0}
+.ms-val{color:var(--text-3);text-align:right}
+.ms-val.num{color:var(--primary)}
+.week-adjust{margin-top:10px;margin-bottom:0}
+.stat-cell .k2{font-size:.65rem;color:var(--text-3);margin-top:2px}
+
+/* 设置页基线块 */
+.base-block{border-bottom:1px dashed var(--border);padding-bottom:12px;margin-bottom:12px}
+.base-block:last-of-type{border-bottom:none}
+.base-name{font-size:.85rem;font-weight:600;margin-bottom:8px}
+.base-cur{font-size:.72rem;color:var(--text-3);margin-top:-4px}
+.base-block .field{margin-bottom:10px}
+
+/* 弹窗 */
+.modal-mask{
+  position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:200;
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.modal{
+  background:#fff;border-radius:14px;padding:18px;width:100%;max-width:400px;
+  max-height:86vh;overflow:auto;
+}
+.modal-title{font-size:1rem;font-weight:700;margin-bottom:12px}
+.modal-body{font-size:.82rem;color:var(--text-2);line-height:1.75}
+.modal-line{margin-bottom:6px}
+.modal-line b{color:var(--text)}
+.modal-note{font-size:.75rem;color:var(--text-3);background:var(--bg);border-radius:8px;padding:8px 10px;margin:8px 0}
+.modal-btns{display:flex;gap:8px;margin-top:14px}
+.modal-btns .btn{flex:1;font-size:.85rem;padding:10px}
+.radio{display:block;font-size:.8rem;margin:4px 0;cursor:pointer}
+.radio input{margin-right:6px}
