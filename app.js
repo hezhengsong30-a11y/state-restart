@@ -115,6 +115,7 @@ function streak(){
 /* ========== 页面渲染 ========== */
 var currentTab = 'today';
 var viewDate = todayStr(); // 今日页当前查看/编辑的日期
+var editing = false;       // 已提交后，是否处于「修改」状态
 
 function renderAll(){
   renderToday();
@@ -134,6 +135,8 @@ function renderToday(){
   var plan = inRange ? PLAN[idx-1] : (idx<1 ? {focus:'计划尚未开始（10月20日开始）', walk:''} : {focus:'30天计划已结束，继续保持已养成的习惯', walk:'舒适步行'});
   var d = getDay(t);
   var st = streak();
+  var submitted = !!d.done;                    // 该日期是否已提交
+  var locked = isToday && submitted && !editing; // 今日已提交且未点「修改」→ 只读
 
   var checkedCount = 0;
   Object.keys(DB.days).forEach(function(k){ if(isChecked(DB.days[k])) checkedCount++; });
@@ -146,7 +149,9 @@ function renderToday(){
   html += '<div class="date-nav">'
     + '<button class="nav-arrow" id="nav-prev" '+(canPrev?'':'disabled')+'>‹ 前一天</button>'
     + '<div class="nav-label"><div>' + dateLabel(t)
-    + (isToday ? ' <span class="today-badge">今天</span>' : ' <span class="draft-badge">'+ (isChecked(d)?'已打卡':'草稿') + ' · 修改中</span>')
+    + (isToday
+        ? ' <span class="today-badge">今天</span>' + (submitted ? ' <span class="draft-badge ok">已提交</span>' : '')
+        : ' <span class="draft-badge">'+ (submitted?'已提交':'草稿') + ' · 修改中</span>')
     + '</div>'
     + (isToday
         ? '<div class="nav-hint">点两侧箭头可查看、修改其他日期的记录</div>'
@@ -175,25 +180,27 @@ function renderToday(){
 
   /* 每日固定习惯 */
   html += '<div class="card"><div class="card-title">每日固定习惯 <span class="sub">忙碌日保住前4项即可</span></div>';
-  html += checkRow('dietOk', d.dietOk, '三餐规律，餐盘比例基本合理', '不跳餐、不吃撑');
-  html += checkRow('noAlcoholSweet', d.noAlcoholSweet, '无酒、无含糖饮料', '');
-  html += checkRow('relax', d.relax, '放松 3～5 分钟', '揉印堂穴或缓慢呼吸');
-  html += checkRow('sedentaryBreaks', d.sedentaryBreaks, '久坐中断', '每坐约1小时起身3分钟');
+  html += checkRow('dietOk', d.dietOk, '三餐规律，餐盘比例基本合理', '不跳餐、不吃撑', locked);
+  html += checkRow('noAlcoholSweet', d.noAlcoholSweet, '无酒、无含糖饮料', '', locked);
+  html += checkRow('relax', d.relax, '放松 3～5 分钟', '揉印堂穴或缓慢呼吸', locked);
+  html += checkRow('sedentaryBreaks', d.sedentaryBreaks, '久坐中断', '每坐约1小时起身3分钟', locked);
   html += '</div>';
+
+  var dis = locked ? ' disabled' : '';
 
   /* 数值记录 */
   html += '<div class="card"><div class="card-title">今日数值</div>'
     + '<div class="field-row">'
-    +   '<div class="field input-suffix"><label>饮水量</label><input type="number" id="f-water" value="'+esc(d.waterMl)+'" placeholder="2500"><span class="suffix">毫升</span></div>'
-    +   '<div class="field input-suffix"><label>步行</label><input type="number" id="f-walk" value="'+esc(d.walkMin)+'" placeholder="'+esc(plan.walk.replace(/[^0-9~～]/g,''))+'"><span class="suffix">分钟</span></div>'
+    +   '<div class="field input-suffix"><label>饮水量</label><input type="number"'+dis+' id="f-water" value="'+esc(d.waterMl)+'" placeholder="2500"><span class="suffix">毫升</span></div>'
+    +   '<div class="field input-suffix"><label>步行</label><input type="number"'+dis+' id="f-walk" value="'+esc(d.walkMin)+'" placeholder="'+esc(plan.walk.replace(/[^0-9~～]/g,''))+'"><span class="suffix">分钟</span></div>'
     + '</div>'
     + '<div class="field-row">'
-    +   '<div class="field input-suffix"><label>睡眠</label><input type="number" step="0.5" id="f-sleep" value="'+esc(d.sleepH)+'" placeholder="7.5"><span class="suffix">小时</span></div>'
-    +   '<div class="field input-suffix"><label>起床时间</label><input type="time" id="f-wake" value="'+esc(d.wakeTime||DB.baseline.wakeTime||'')+'"></div>'
+    +   '<div class="field input-suffix"><label>睡眠</label><input type="number" step="0.5"'+dis+' id="f-sleep" value="'+esc(d.sleepH)+'" placeholder="7.5"><span class="suffix">小时</span></div>'
+    +   '<div class="field input-suffix"><label>起床时间</label><input type="time"'+dis+' id="f-wake" value="'+esc(d.wakeTime||DB.baseline.wakeTime||'')+'"></div>'
     + '</div>'
     + '<div class="field-row">'
-    +   '<div class="field input-suffix"><label>体重（称重日填）</label><input type="number" step="0.1" id="f-weight" value="'+esc(d.weight)+'" placeholder="'+esc(DB.baseline.weight)+'"><span class="suffix">kg</span></div>'
-    +   '<div class="field input-suffix"><label>腰围（称重日填）</label><input type="number" step="0.5" id="f-waist" value="'+esc(d.waist)+'"><span class="suffix">cm</span></div>'
+    +   '<div class="field input-suffix"><label>体重（称重日填）</label><input type="number" step="0.1"'+dis+' id="f-weight" value="'+esc(d.weight)+'" placeholder="'+esc(DB.baseline.weight)+'"><span class="suffix">kg</span></div>'
+    +   '<div class="field input-suffix"><label>腰围（称重日填）</label><input type="number" step="0.5"'+dis+' id="f-waist" value="'+esc(d.waist)+'"><span class="suffix">cm</span></div>'
     + '</div></div>';
 
   /* 血糖 */
@@ -206,32 +213,46 @@ function renderToday(){
         + '<span class="tag">'+esc(g.timing)+'</span>'
         + (g.method ? '<span class="tag">'+esc(g.method)+'</span>' : '')
         + (g.meds ? '<span class="tag">'+esc(g.meds)+'</span>' : '')
-        + '<button class="del" data-del-glucose="'+i+'">×</button></div>';
+        + (locked ? '' : '<button class="del" data-del-glucose="'+i+'">×</button>') + '</div>';
     });
   }
-  html += '<div class="field-row" style="margin-top:8px">'
-    + '<div class="field input-suffix"><input type="number" step="0.1" id="g-value" placeholder="数值"><span class="suffix">mmol/L</span></div>'
-    + '<div class="field"><select id="g-timing"><option>空腹</option><option>餐后2小时</option><option>餐前</option><option>睡前</option><option>随机</option></select></div>'
-    + '</div>'
-    + '<div class="field-row">'
-    + '<div class="field"><input type="text" id="g-method" placeholder="测量方式（如：家用血糖仪）"></div>'
-    + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况"></div>'
-    + '</div>'
-    + '<button class="btn secondary small" id="btn-add-glucose">+ 添加血糖记录</button>'
-    + '<div class="chart-note">不因一次读数自行调整药量；家用血糖仪主要用于观察趋势</div>'
+  if(!locked){
+    html += '<div class="field-row" style="margin-top:8px">'
+      + '<div class="field input-suffix"><input type="number" step="0.1" id="g-value" placeholder="数值"><span class="suffix">mmol/L</span></div>'
+      + '<div class="field"><select id="g-timing"><option>空腹</option><option>餐后2小时</option><option>餐前</option><option>睡前</option><option>随机</option></select></div>'
+      + '</div>'
+      + '<div class="field-row">'
+      + '<div class="field"><input type="text" id="g-method" placeholder="测量方式（如：家用血糖仪）"></div>'
+      + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况"></div>'
+      + '</div>'
+      + '<button class="btn secondary small" id="btn-add-glucose">+ 添加血糖记录</button>';
+  }
+  html += '<div class="chart-note">不因一次读数自行调整药量；家用血糖仪主要用于观察趋势</div>'
     + '</div>';
 
   /* 心情 */
   html += '<div class="card"><div class="card-title">睡前三行 <span class="sub">一两句话即可</span></div>'
     + '<div class="mood-quote">今天我的压力：＿＿/10<br>今天我做到了：＿＿<br>明天最重要的一件事：＿＿</div>'
-    + '<div class="field"><label>压力（0-10）</label><input type="number" min="0" max="10" id="f-stress" value="'+esc(d.stress)+'"></div>'
-    + '<div class="field"><label>今天我做到了</label><textarea id="f-did" placeholder="一两句话">'+esc(d.did)+'</textarea></div>'
-    + '<div class="field"><label>明天最重要的一件事</label><textarea id="f-tomorrow" placeholder="一句话">'+esc(d.tomorrow)+'</textarea></div>'
-    + '<div class="field"><label>备注 / 复盘</label><textarea id="f-note" placeholder="复盘日写在这里">'+esc(d.note)+'</textarea></div>'
+    + '<div class="field"><label>压力（0-10）</label><input type="number" min="0" max="10"'+dis+' id="f-stress" value="'+esc(d.stress)+'"></div>'
+    + '<div class="field"><label>今天我做到了</label><textarea'+dis+' id="f-did" placeholder="一两句话">'+esc(d.did)+'</textarea></div>'
+    + '<div class="field"><label>明天最重要的一件事</label><textarea'+dis+' id="f-tomorrow" placeholder="一句话">'+esc(d.tomorrow)+'</textarea></div>'
+    + '<div class="field"><label>备注 / 复盘</label><textarea'+dis+' id="f-note" placeholder="复盘日写在这里">'+esc(d.note)+'</textarea></div>'
     + '</div>';
 
-  html += '<div class="draft-status" id="draft-status">输入内容会自动保存草稿，无需手动操作</div>';
-  html += '<button class="btn" id="btn-save">' + (isToday ? '完成今日打卡' : '保存修改') + '</button>';
+  /* 底部操作区：三态 */
+  if(locked){
+    html += '<div class="submitted-bar">✓ 已提交今日打卡数据' + (d.submitTime ? ' · ' + esc(d.submitTime) : '') + '</div>';
+    html += '<button class="btn secondary" id="btn-edit">修改</button>';
+  } else if(isToday){
+    html += '<div class="draft-status" id="draft-status">' + (submitted ? '修改中：改完可重新提交' : '输入内容会自动保存草稿，也可点「保存草稿」') + '</div>';
+    html += '<div class="btn-row">'
+      +   '<button class="btn secondary" id="btn-draft">保存草稿</button>'
+      +   '<button class="btn" id="btn-submit">' + (submitted ? '保存修改' : '提交今日打卡数据') + '</button>'
+      + '</div>';
+  } else {
+    html += '<div class="draft-status" id="draft-status">正在修改 ' + dateLabel(t) + ' 的记录</div>';
+    html += '<button class="btn" id="btn-submit">保存修改</button>';
+  }
   html += '<div style="height:10px"></div>';
   html += '<div class="notice red">⚠️ 如出现黄疸、持续腹痛、腰痛伴发热或尿量显著减少等明显新症状，请及时就医。本工具不替代医嘱，用药和复查按医生要求执行。</div>';
 
@@ -239,8 +260,8 @@ function renderToday(){
   bindToday(el, d);
 }
 
-function checkRow(key, on, label, hint){
-  return '<div class="check-row"><div class="box '+(on?'on':'')+'" data-check="'+key+'">'+(on?'✓':'')+'</div>'
+function checkRow(key, on, label, hint, locked){
+  return '<div class="check-row'+(locked?' locked':'')+'"><div class="box '+(on?'on':'')+'"'+(locked?'':' data-check="'+key+'"')+'>'+(on?'✓':'')+'</div>'
     + '<div class="label">'+esc(label)+(hint?'<div class="hint">'+esc(hint)+'</div>':'')+'</div></div>';
 }
 
@@ -261,9 +282,9 @@ function collectFields(el, d){
 function bindToday(el, d){
   /* 日期切换 */
   var prev = $('#nav-prev', el), next = $('#nav-next', el), back = $('#nav-back-today', el);
-  if(prev) prev.addEventListener('click', function(){ viewDate = addDays(viewDate, -1); renderToday(); window.scrollTo(0,0); });
-  if(next) next.addEventListener('click', function(){ viewDate = addDays(viewDate, 1); renderToday(); window.scrollTo(0,0); });
-  if(back) back.addEventListener('click', function(){ viewDate = todayStr(); renderToday(); window.scrollTo(0,0); });
+  if(prev) prev.addEventListener('click', function(){ viewDate = addDays(viewDate, -1); editing = false; renderToday(); window.scrollTo(0,0); });
+  if(next) next.addEventListener('click', function(){ viewDate = addDays(viewDate, 1); editing = false; renderToday(); window.scrollTo(0,0); });
+  if(back) back.addEventListener('click', function(){ viewDate = todayStr(); editing = false; renderToday(); window.scrollTo(0,0); });
 
   /* 习惯打勾：立即保存 */
   el.querySelectorAll('[data-check]').forEach(function(box){
@@ -303,7 +324,8 @@ function bindToday(el, d){
     }
   });
 
-  $('#btn-add-glucose', el).addEventListener('click', function(){
+  var addG = $('#btn-add-glucose', el);
+  if(addG) addG.addEventListener('click', function(){
     var v = $('#g-value', el).value.trim();
     if(!v){ toast('请填写血糖数值'); return; }
     d.glucose.push({
@@ -323,16 +345,42 @@ function bindToday(el, d){
     });
   });
 
-  $('#btn-save', el).addEventListener('click', function(){
+  /* 保存草稿（不提交） */
+  var btnDraft = $('#btn-draft', el);
+  if(btnDraft) btnDraft.addEventListener('click', function(){
+    collectFields(el, d);
+    save();
+    showDraftSaved();
+    toast('草稿已保存');
+  });
+
+  /* 提交打卡数据 / 保存修改 */
+  var btnSubmit = $('#btn-submit', el);
+  if(btnSubmit) btnSubmit.addEventListener('click', function(){
     collectFields(el, d);
     var isToday = (viewDate === todayStr());
-    if(isToday) d.done = true;
+    var first = !d.done;
+    d.done = true;
+    if(isToday){
+      var now = new Date();
+      d.submitTime = pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    }
+    editing = false;
     save();
     renderToday();
     renderTrend();
     renderPlan();
-    toast(isToday ? '今日打卡已保存 ✓' : '修改已保存 ✓');
+    toast(first ? '已提交打卡数据 ✓' : '修改已保存 ✓');
     window.scrollTo({top:0, behavior:'smooth'});
+  });
+
+  /* 已提交后点「修改」回到编辑态 */
+  var btnEdit = $('#btn-edit', el);
+  if(btnEdit) btnEdit.addEventListener('click', function(){
+    editing = true;
+    renderToday();
+    var cards = el.querySelectorAll('.card');
+    if(cards.length) cards[0].scrollIntoView({behavior:'smooth', block:'start'});
   });
 }
 

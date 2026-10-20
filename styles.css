@@ -67,11 +67,30 @@ main{max-width:640px;margin:0 auto;padding:14px 16px}
 .draft-badge{font-size:.68rem;background:#fffbeb;color:var(--accent);border:1px solid #fde68a;border-radius:4px;padding:1px 6px;font-weight:500}
 .back-today{display:inline-block;margin-top:4px;font-size:.78rem;color:var(--primary);text-decoration:underline}
 
+.draft-badge.ok{background:var(--primary-light);color:var(--primary);border-color:#cde6da}
+
 /* 草稿保存状态 */
 .draft-status{
   text-align:center;font-size:.75rem;color:var(--text-3);margin:2px 0 8px;
 }
 .draft-status.saved{color:var(--primary)}
+
+/* 双按钮行 */
+.btn-row{display:flex;gap:10px}
+.btn-row .btn{flex:1;width:auto}
+
+/* 已提交状态条 */
+.submitted-bar{
+  text-align:center;font-size:.82rem;color:var(--primary);font-weight:600;
+  background:var(--primary-light);border:1px solid #cde6da;border-radius:10px;
+  padding:11px;margin-bottom:10px;
+}
+
+/* 只读态 */
+.check-row.locked .box{cursor:default;opacity:.85}
+.field input:disabled,.field select:disabled,.field textarea:disabled{
+  background:var(--bg);color:var(--text);opacity:.9;
+}
 
 /* 今日头部 */
 .day-hero{
