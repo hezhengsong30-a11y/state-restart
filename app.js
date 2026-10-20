@@ -114,6 +114,7 @@ function streak(){
 
 /* ========== 页面渲染 ========== */
 var currentTab = 'today';
+var viewDate = todayStr(); // 今日页当前查看/编辑的日期
 
 function renderAll(){
   renderToday();
@@ -125,7 +126,9 @@ function renderAll(){
 /* ---- 今日 ---- */
 function renderToday(){
   var el = $('#page-today');
-  var t = todayStr();
+  var t = viewDate;
+  var today = todayStr();
+  var isToday = (t === today);
   var idx = dayIndex(t);
   var inRange = idx>=1 && idx<=30;
   var plan = inRange ? PLAN[idx-1] : (idx<1 ? {focus:'计划尚未开始（10月20日开始）', walk:''} : {focus:'30天计划已结束，继续保持已养成的习惯', walk:'舒适步行'});
@@ -136,11 +139,24 @@ function renderToday(){
   Object.keys(DB.days).forEach(function(k){ if(isChecked(DB.days[k])) checkedCount++; });
 
   var html = '';
+
+  /* 日期切换条：可回到任意过去日期查看/修改 */
+  var canPrev = t > START;
+  var canNext = t < today;
+  html += '<div class="date-nav">'
+    + '<button class="nav-arrow" id="nav-prev" '+(canPrev?'':'disabled')+'>‹</button>'
+    + '<div class="nav-label">' + dateLabel(t)
+    + (isToday ? ' <span class="today-badge">今天</span>' : ' <span class="draft-badge">'+(isChecked(d)?'已打卡':'草稿')+'</span>')
+    + (isToday ? '' : '<a href="javascript:void 0" id="nav-back-today" class="back-today">回到今天</a>')
+    + '</div>'
+    + '<button class="nav-arrow" id="nav-next" '+(canNext?'':'disabled')+'>›</button>'
+    + '</div>';
+
   html += '<div class="day-hero">'
     + '<div class="day-num">' + (inRange ? ('第 '+idx+' 天 / 共 30 天') : (idx<1?'准备阶段':'计划已完成')) + '</div>'
     + '<div class="day-focus">' + esc(plan.focus) + '</div>'
     + (plan.walk ? '<div class="day-walk">🚶 步行安排：' + esc(plan.walk) + '</div>' : '')
-    + '<div class="day-date">今天是 ' + dateLabel(t) + '</div>'
+    + '<div class="day-date">' + (isToday ? '今天是 ' : '正在编辑 ') + dateLabel(t) + (isToday?'':' 的记录') + '</div>'
     + '<div class="hero-stats">'
     +   '<div class="hero-stat"><div class="v">'+st+'</div><div class="k">连续打卡</div></div>'
     +   '<div class="hero-stat"><div class="v">'+checkedCount+'</div><div class="k">累计打卡</div></div>'
@@ -211,7 +227,8 @@ function renderToday(){
     + '<div class="field"><label>备注 / 复盘</label><textarea id="f-note" placeholder="复盘日写在这里">'+esc(d.note)+'</textarea></div>'
     + '</div>';
 
-  html += '<button class="btn" id="btn-save">完成今日打卡</button>';
+  html += '<button class="btn" id="btn-save">' + (isToday ? '完成今日打卡' : '保存修改') + '</button>';
+  html += '<div class="chart-note" style="margin-top:6px">填写内容会自动保存为草稿，中途退出不会丢失</div>';
   html += '<div style="height:10px"></div>';
   html += '<div class="notice red">⚠️ 如出现黄疸、持续腹痛、腰痛伴发热或尿量显著减少等明显新症状，请及时就医。本工具不替代医嘱，用药和复查按医生要求执行。</div>';
 
@@ -224,7 +241,28 @@ function checkRow(key, on, label, hint){
     + '<div class="label">'+esc(label)+(hint?'<div class="hint">'+esc(hint)+'</div>':'')+'</div></div>';
 }
 
+/* 把当前表单内容写入记录（不置 done，作为草稿） */
+function collectFields(el, d){
+  d.waterMl = $('#f-water', el).value;
+  d.walkMin = $('#f-walk', el).value;
+  d.sleepH  = $('#f-sleep', el).value;
+  d.wakeTime= $('#f-wake', el).value;
+  d.weight  = $('#f-weight', el).value;
+  d.waist   = $('#f-waist', el).value;
+  d.stress  = $('#f-stress', el).value;
+  d.did     = $('#f-did', el).value;
+  d.tomorrow= $('#f-tomorrow', el).value;
+  d.note    = $('#f-note', el).value;
+}
+
 function bindToday(el, d){
+  /* 日期切换 */
+  var prev = $('#nav-prev', el), next = $('#nav-next', el), back = $('#nav-back-today', el);
+  if(prev) prev.addEventListener('click', function(){ viewDate = addDays(viewDate, -1); renderToday(); window.scrollTo(0,0); });
+  if(next) next.addEventListener('click', function(){ viewDate = addDays(viewDate, 1); renderToday(); window.scrollTo(0,0); });
+  if(back) back.addEventListener('click', function(){ viewDate = todayStr(); renderToday(); window.scrollTo(0,0); });
+
+  /* 习惯打勾：立即保存 */
   el.querySelectorAll('[data-check]').forEach(function(box){
     box.addEventListener('click', function(){
       var k = box.getAttribute('data-check');
@@ -234,6 +272,24 @@ function bindToday(el, d){
       box.textContent = d[k] ? '✓' : '';
     });
   });
+
+  /* 输入自动保存草稿（防抖） */
+  var draftTimer = null;
+  function autoDraft(){
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(function(){
+      collectFields(el, d);
+      save();
+    }, 600);
+  }
+  ['#f-water','#f-walk','#f-sleep','#f-wake','#f-weight','#f-waist','#f-stress','#f-did','#f-tomorrow','#f-note'].forEach(function(sel){
+    var f = $(sel, el);
+    if(f){
+      f.addEventListener('input', autoDraft);
+      f.addEventListener('change', autoDraft);
+    }
+  });
+
   $('#btn-add-glucose', el).addEventListener('click', function(){
     var v = $('#g-value', el).value.trim();
     if(!v){ toast('请填写血糖数值'); return; }
@@ -253,23 +309,16 @@ function bindToday(el, d){
       save(); renderToday();
     });
   });
+
   $('#btn-save', el).addEventListener('click', function(){
-    d.waterMl = $('#f-water', el).value;
-    d.walkMin = $('#f-walk', el).value;
-    d.sleepH  = $('#f-sleep', el).value;
-    d.wakeTime= $('#f-wake', el).value;
-    d.weight  = $('#f-weight', el).value;
-    d.waist   = $('#f-waist', el).value;
-    d.stress  = $('#f-stress', el).value;
-    d.did     = $('#f-did', el).value;
-    d.tomorrow= $('#f-tomorrow', el).value;
-    d.note    = $('#f-note', el).value;
-    d.done = true;
+    collectFields(el, d);
+    var isToday = (viewDate === todayStr());
+    if(isToday) d.done = true;
     save();
     renderToday();
     renderTrend();
     renderPlan();
-    toast('今日打卡已保存 ✓');
+    toast(isToday ? '今日打卡已保存 ✓' : '修改已保存 ✓');
     window.scrollTo({top:0, behavior:'smooth'});
   });
 }
@@ -291,14 +340,22 @@ function renderPlan(){
     var p = PLAN[i];
     var rec = DB.days[dateStr];
     var done = rec && isChecked(rec);
-    var cls = 'plan-item' + (done?' done':'') + (i+1===todayIdx?' today':'') + (p.review?' review':'');
-    html += '<div class="'+cls+'"><div class="d">'+(i+1)+'</div><div class="info">'
+    var editable = dateStr <= t; // 未来日期不可编辑
+    var cls = 'plan-item' + (done?' done':'') + (i+1===todayIdx?' today':'') + (p.review?' review':'') + (editable?' editable':'');
+    html += '<div class="'+cls+'"'+(editable?' data-goto-date="'+dateStr+'"':'')+'><div class="d">'+(i+1)+'</div><div class="info">'
       + '<div class="focus">'+esc(p.focus)+'</div>'
       + '<div class="meta">'+dateLabel(dateStr)+' · <span class="walk">'+esc(p.walk)+'</span>'
       + (p.weigh?' · ⚖️称重':'') + (p.review?' · 📋复盘':'')
+      + (editable?' · 点击编辑':'')
       + '</div></div></div>';
   }
   el.innerHTML = html;
+  el.querySelectorAll('[data-goto-date]').forEach(function(item){
+    item.addEventListener('click', function(){
+      viewDate = item.getAttribute('data-goto-date');
+      document.querySelector('.tab[data-tab="today"]').click();
+    });
+  });
 }
 
 /* ---- 趋势 ---- */
