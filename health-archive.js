@@ -667,28 +667,24 @@ function renderIssueCard(issue){
   return html;
 }
 
-/* ========== 关键事件时间线 ========== */
+/* ========== 关键事件时间线（默认折叠，与"其他健康信息"风格一致） ========== */
 function renderEventTimeline(){
   var evs = A.DB.events.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
-  var show = evs.slice(0,5);
-  var more = evs.length - show.length;
   var html='<div class="card"><div class="card-title">关键时间点'
     + '<span style="display:flex;gap:6px">'
     + '<button class="btn small ghost" id="btn-lab-batch">批量录化验</button>'
     + '<button class="btn small secondary" id="btn-add-event">＋添加</button>'
     + '</span>'
     + '</div>';
-  if(show.length===0){
-    html += '<div class="empty">暂无事件。体检、就诊、用药、症状变化、计划开始都可以记在这里。</div>';
+  html += '<details class="fold"><summary>事件记录 <span class="fold-sub">'+evs.length+' 条 · 点击展开</span></summary>';
+  if(evs.length===0){
+    html += '<div class="empty" style="margin-top:8px">暂无事件。体检、就诊、用药、症状变化、计划开始都可以记在这里。</div>';
   } else {
     html += '<div class="timeline">';
-    show.forEach(function(ev){ html += renderEventNode(ev); });
+    evs.forEach(function(ev){ html += renderEventNode(ev); });
     html += '</div>';
-    if(more>0){
-      html += '<button class="btn small ghost" id="btn-view-all-events" style="margin-top:8px">查看全部（含 '+more+' 条更早事件）</button>';
-    }
   }
-  html += '</div>';
+  html += '</details></div>';
   return html;
 }
 function renderEventNode(ev){
