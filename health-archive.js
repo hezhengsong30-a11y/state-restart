@@ -29,6 +29,9 @@ if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
       if(focusNames.indexOf(i.name)>=0) i.focus = true;
       else if(seedNames.indexOf(i.name)>=0) i.focus = false;
     });
+    /* 硬上限：重点不超过 2 项，超出则移出非本期计划的重点 */
+    var extras = A.DB.issues.filter(function(i){ return i.focus && !i.archived && focusNames.indexOf(i.name)<0; });
+    extras.forEach(function(i){ i.focus = false; });
     /* 重点项复用已有监测项，避免重复建项 */
     var monByName = {};
     (A.DB.monitorItems||[]).forEach(function(m){
@@ -166,15 +169,23 @@ function deleteIssue(id){
   A.DB.monitorItems.forEach(function(mo){ if(mo.issueId===id) mo.issueId=null; });
   return true;
 }
+var MAX_FOCUS = 2; /* 本轮重点关注项硬上限 */
+function focusCount(){
+  return (A.DB.issues||[]).filter(function(i){ return i.focus && !i.archived; }).length;
+}
 function setIssueFocus(id, focus){
-  /* 温和提示：重点建议 1~3 项 */
+  var issue = A.DB.issues.find(function(i){ return i.id===id; });
+  if(!issue) return false;
   if(focus){
-    var nFocus = A.DB.issues.filter(function(i){ return i.focus && !i.archived }).length;
-    if(nFocus>=3){
-      A.toast('建议重点保持 1~3 项，您已设为重点后可自行决定');
+    /* 已为重点：无需处理 */
+    if(issue.focus) return true;
+    /* 硬限制：重点不超过 2 项 */
+    if(focusCount() >= MAX_FOCUS){
+      A.toast('本轮重点最多 '+MAX_FOCUS+' 项，请先移出某个重点再设为重点');
+      return false;
     }
   }
-  return updateIssue(id, { focus: !!focus });
+  return !!updateIssue(id, { focus: !!focus });
 }
 function archiveIssue(id, reason){
   return updateIssue(id, { archived:true, archivedAt: nowISO(), archivedReason: reason||'' });
@@ -950,7 +961,8 @@ function bindArchive(){
     btn.addEventListener('click', function(){
       var c = btn.closest('[data-issue-id]');
       var id = +c.getAttribute('data-issue-id');
-      setIssueFocus(id, true); A.save(); A.renderAll(); A.toast('已设为本轮重点');
+      if(setIssueFocus(id, true)){ A.save(); A.renderAll(); A.toast('已设为本轮重点'); }
+      else { A.renderAll(); }
     });
   });
   /* 时间线里的事件操作 */
@@ -1022,7 +1034,9 @@ function openIssueDialog(id){
       .map(function(x){ return '<button type="button" class="chip" data-nm="'+x[0]+'" data-nmu="'+x[1]+'">'+x[0]+'</button>'; }).join('')
     + '</div>'
     + '<button type="button" class="btn small secondary" id="q-nm-add" style="margin-top:6px">添加该监测项目</button></div></div>';
-  html += '<div class="field"><label><input type="checkbox" id="q-focus" '+(issue.focus?'checked':'')+'> 设为本轮重点</label></div>';
+  var focusFull = !issue.focus && focusCount() >= MAX_FOCUS;
+  html += '<div class="field"><label><input type="checkbox" id="q-focus" '+(issue.focus?'checked':'')+(focusFull?' disabled':'')+'> 设为本轮重点</label>'
+    + (focusFull?'<span class="muted" style="margin-left:8px">本轮重点已满 '+MAX_FOCUS+' 项，请先移出一项</span>':'')+'</div>';
 
   A.showModal({
     title:(isNew?'新增':'编辑')+'健康问题',
@@ -1054,12 +1068,20 @@ function openIssueDialog(id){
           seekCare: A.$('#q-seekcare').value.trim(),
           linkedActions: linked,
           monitorIds: monitors,
-          focus: A.$('#q-focus').checked
+          focus: issue.focus /* 重点状态不通过 patch 直写，统一由 setIssueFocus 控制上限 */
         };
         if(isNew){
           issue = addIssue(patch);
         } else {
           updateIssue(id, patch);
+          issue = A.DB.issues.find(function(i){ return i.id===id; }) || issue;
+        }
+        /* 按勾选状态走 setIssueFocus，保证重点不超过 2 项 */
+        var wantFocus = A.$('#q-focus').checked;
+        if(wantFocus && !issue.focus){
+          setIssueFocus(issue.id, true);
+        } else if(!wantFocus && issue.focus){
+          setIssueFocus(issue.id, false);
         }
         /* 同时更新监测项的 issueId */
         monitors.forEach(function(mid){
@@ -1422,15 +1444,15 @@ function bootstrapIfEmpty(){
           var wName = A.$('#b-weight-name').value.trim();
           var gName = A.$('#b-glucose-name').value.trim();
           if(wName){
-            addIssue({
+            var wIssue = addIssue({
               name: wName, type:'检查指标',
               currentStatus: A.$('#b-weight-status').value.trim(),
               source: bw.source || '体检报告',
               occurDate: bw.date || null,
-              cycleGoal:'待设置', focus:true
+              cycleGoal:'待设置'
             });
-            /* 自动建体重监测项 */
-            addMonitorItem({ issueId: A.DB.issues[A.DB.issues.length-1].id, name:'体重', kind:'num', unit:'kg' });
+            addMonitorItem({ issueId: wIssue.id, name:'体重', kind:'num', unit:'kg' });
+            setIssueFocus(wIssue.id, true); /* 受 2 项上限约束 */
           }
           if(gName){
             var gIssue = addIssue({
@@ -1438,9 +1460,10 @@ function bootstrapIfEmpty(){
               currentStatus: A.$('#b-glucose-status').value.trim(),
               source: bg.source || '',
               occurDate: bg.date || null,
-              cycleGoal:'待设置', focus:true
+              cycleGoal:'待设置'
             });
             addMonitorItem({ issueId: gIssue.id, name:'空腹血糖', kind:'num', unit:'mmol/L' });
+            setIssueFocus(gIssue.id, true);
           }
           /* 关联监测项 */
           A.DB.issues.forEach(function(i){
