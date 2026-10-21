@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>30天调理打卡</title>
+<link rel="stylesheet" href="styles.v17.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">30天调理</div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="today">今日</button>
+      <button class="tab" data-tab="plan">计划</button>
+      <button class="tab" data-tab="trend">趋势</button>
+      <button class="tab" data-tab="archive">健康档案</button>
+      <button class="tab" data-tab="setting">设置</button>
+    </nav>
+  </div>
+</header>
+
+<main id="app">
+  <section id="page-today" class="page active"></section>
+  <section id="page-plan" class="page"></section>
+  <section id="page-trend" class="page"></section>
+  <section id="page-archive" class="page"></section>
+  <section id="page-setting" class="page"></section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="app.v17.js"></script>
+<script src="archive-seed.v17.js"></script>
+<script src="health-archive.v17.js"></script>
+<div class="ver-tag">v17</div>
+</body>
+</html>
