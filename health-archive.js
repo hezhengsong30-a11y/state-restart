@@ -6,14 +6,14 @@ if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
 
 /* ========== 首次打开：合并写入内置体检档案 ==========
  * 按问题名称/事件内容去重，已有数据只补缺失项与参考范围，不覆盖手工修改。
- * 每次升级种子版本（archiveSeedV2）都会执行一次补全。
+ * 每次升级种子版本（当前 archiveSeedV3）都会执行一次补全。
  */
 (function seedArchiveOnce(){
   var seed = window.__H30_ARCHIVE_SEED;
   try{
     if(!seed){ console.warn('内置体检档案未加载'); return; }
     A.DB.settings = A.DB.settings || {};
-    if(A.DB.settings.archiveSeedV2) return;
+    if(A.DB.settings.archiveSeedV3) return;
     if(typeof A.mergeArchive === 'function'){
       A.mergeArchive({
         archiveOnly: true,
@@ -22,6 +22,30 @@ if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
         events: JSON.parse(JSON.stringify(seed.events))
       });
     }
+    /* 重点问题跟随本期计划：仅「体重/BMI 管理」「血糖管理」，报告结论归入其他健康信息 */
+    var focusNames = ['体重/BMI 管理', '血糖管理'];
+    var seedNames = seed.issues.map(function(s){ return s.name; });
+    A.DB.issues.forEach(function(i){
+      if(focusNames.indexOf(i.name)>=0) i.focus = true;
+      else if(seedNames.indexOf(i.name)>=0) i.focus = false;
+    });
+    /* 重点项复用已有监测项，避免重复建项 */
+    var monByName = {};
+    (A.DB.monitorItems||[]).forEach(function(m){
+      (monByName[m.name] = monByName[m.name] || []).push(m.id);
+    });
+    function linkMonitor(issueName, names){
+      var is = A.DB.issues.filter(function(x){ return x.name===issueName; })[0];
+      if(!is) return;
+      is.monitorIds = is.monitorIds || [];
+      names.forEach(function(n){
+        (monByName[n]||[]).forEach(function(id){
+          if(is.monitorIds.indexOf(id)<0) is.monitorIds.push(id);
+        });
+      });
+    }
+    linkMonitor('体重/BMI 管理', ['体重', '体重指数']);
+    linkMonitor('血糖管理', ['空腹血糖', '糖化血红蛋白']);
     var b = A.DB.baseline;
     if(b){
       if(b.weight && !b.weight.date && String(b.weight.value||'')===String(seed.baseline.weight.value)){
@@ -33,7 +57,7 @@ if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
         b.constitution = JSON.parse(JSON.stringify(seed.baseline.constitution));
       }
     }
-    A.DB.settings.archiveSeedV2 = 'v2';
+    A.DB.settings.archiveSeedV3 = 'v3';
     A.save();
   }catch(e){ console.warn('seed archive skipped', e); }
 })();

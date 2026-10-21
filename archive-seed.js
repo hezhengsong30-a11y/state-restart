@@ -13,7 +13,7 @@ window.__H30_ARCHIVE_SEED = {
       linkedActions: ["dietOk", "walkMin", "sedentaryBreaks"],
       nextReviewDate: "2027-01-18", reviewDate: null,
       seekCare: "报告建议至心内科/内分泌科评估；先生活方式干预 3~6 个月，复查血脂后由医生决定是否用药",
-      focus: true, archived: false, archivedAt: null, archivedReason: ""
+      focus: false, archived: false, archivedAt: null, archivedReason: ""
     },
     {
       id: 2, name: "肝功能异常", type: "健康问题",
@@ -24,7 +24,7 @@ window.__H30_ARCHIVE_SEED = {
       linkedActions: ["dietOk", "noAlcoholSweet", "sleepH"],
       nextReviewDate: "2026-11-18", reviewDate: null,
       seekCare: "报告建议尽快至消化内科/肝病科就诊，完善肝炎病毒等检查并复查肝功能；打卡不能替代就医",
-      focus: true, archived: false, archivedAt: null, archivedReason: ""
+      focus: false, archived: false, archivedAt: null, archivedReason: ""
     },
     {
       id: 3, name: "空腹血糖升高（待复查）", type: "检查指标",
@@ -35,7 +35,7 @@ window.__H30_ARCHIVE_SEED = {
       linkedActions: ["dietOk", "noAlcoholSweet", "walkMin"],
       nextReviewDate: "2026-11-18", reviewDate: null,
       seekCare: "报告建议内分泌科就诊，进一步检查明确情况；是否用药由医生决定",
-      focus: true, archived: false, archivedAt: null, archivedReason: ""
+      focus: false, archived: false, archivedAt: null, archivedReason: ""
     },
     {
       id: 4, name: "肥胖（BMI 30.5）", type: "健康问题",
@@ -113,6 +113,28 @@ window.__H30_ARCHIVE_SEED = {
       nextReviewDate: "2026-11-18", reviewDate: null,
       seekCare: "报告建议口腔科就诊处理龋齿与楔状缺损，避免缺损加深引起牙髓问题",
       focus: false, archived: false, archivedAt: null, archivedReason: ""
+    },
+    {
+      id: 11, name: "体重/BMI 管理", type: "健康问题",
+      currentStatus: "本期计划重点：基线体重 89.5 kg，BMI 30.5（参考 18.5-23.9）；目标为 3~6 个月减重 5%~15%",
+      keywords: ["体重", "BMI", "减重"],
+      source: "体检报告", occurDate: "2026-10-18", monitorIds: [10],
+      cycleGoal: "控制膳食总量、低脂低糖、规律有氧运动；每周记录体重，观察趋势而非单日波动",
+      linkedActions: ["dietOk", "walkMin", "sedentaryBreaks"],
+      nextReviewDate: "2026-11-18", reviewDate: null,
+      seekCare: "如 3~6 个月生活方式干预后仍未减重 5%，可至体重管理门诊或营养科进一步评估",
+      focus: true, archived: false, archivedAt: null, archivedReason: ""
+    },
+    {
+      id: 12, name: "血糖管理", type: "检查指标",
+      currentStatus: "本期计划重点：体检空腹血糖 9.05 mmol/L、糖化血红蛋白 6.8%，报告提示糖尿病可能，待内分泌科复查",
+      keywords: ["血糖", "空腹血糖", "糖化血红蛋白"],
+      source: "体检报告", occurDate: "2026-10-18", monitorIds: [],
+      cycleGoal: "按医生要求复查血糖相关指标；控糖饮食、规律运动、按时记录，不自行调药",
+      linkedActions: ["dietOk", "noAlcoholSweet", "walkMin"],
+      nextReviewDate: "2026-11-18", reviewDate: null,
+      seekCare: "报告建议内分泌科就诊明确情况；是否用药由医生决定，打卡不能替代就医",
+      focus: true, archived: false, archivedAt: null, archivedReason: ""
     }
   ],
   monitorItems: [
@@ -124,7 +146,8 @@ window.__H30_ARCHIVE_SEED = {
     { id: 6, issueId: 2, name: "GGT", kind: "num", unit: "U/L", refRange: "10-60", options: [], notes: "γ-谷氨酰基转移酶" },
     { id: 7, issueId: 3, name: "空腹血糖", kind: "num", unit: "mmol/L", refRange: "3.9-6.1", options: [], notes: "按医生要求复查，不因单次读数自行调药" },
     { id: 8, issueId: 3, name: "糖化血红蛋白", kind: "num", unit: "%", refRange: "4.0-6.0", options: [], notes: "反映近 2-3 个月平均血糖" },
-    { id: 9, issueId: 4, name: "体重指数", kind: "num", unit: "kg/m²", refRange: "18.5-23.9", options: [], notes: "BMI，≥28 为肥胖" }
+    { id: 9, issueId: 4, name: "体重指数", kind: "num", unit: "kg/m²", refRange: "18.5-23.9", options: [], notes: "BMI，≥28 为肥胖" },
+    { id: 10, issueId: 11, name: "体重", kind: "num", unit: "kg", refRange: "", options: [], notes: "每周固定时间称重，观察趋势" }
   ],
   events: [
     { id: 1, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [1], description: "总胆固醇", source: "体检报告", value: 7.12, valueUnit: "mmol/L", refRange: "＜5.17", notes: "生化检测；报告提示增高" },
@@ -133,9 +156,9 @@ window.__H30_ARCHIVE_SEED = {
     { id: 4, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [2], description: "ALT（谷丙转氨酶）", source: "体检报告", value: 182, valueUnit: "U/L", refRange: "9-50", notes: "生化检测；报告提示明显增高" },
     { id: 5, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [2], description: "AST（天门冬氨酸氨基转移酶）", source: "体检报告", value: 87, valueUnit: "U/L", refRange: "15-40", notes: "生化检测；报告提示增高" },
     { id: 6, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [2], description: "GGT（γ-谷氨酰基转移酶）", source: "体检报告", value: 296, valueUnit: "U/L", refRange: "10-60", notes: "生化检测；报告提示明显增高" },
-    { id: 7, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [3], description: "空腹血糖（体检）", source: "体检报告", value: 9.05, valueUnit: "mmol/L", refRange: "3.9-6.1", notes: "报告提示增高，建议复查明确；不因一次读数自行调药" },
-    { id: 8, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [3], description: "糖化血红蛋白（HbA1c）", source: "体检报告", value: 6.8, valueUnit: "%", refRange: "4.0-6.0", notes: "反映近 2-3 个月平均血糖水平" },
-    { id: 9, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [4], description: "体重指数（BMI）", source: "体检报告", value: 30.5, valueUnit: "kg/m²", refRange: "18.5-23.9", notes: "身高 171.1 cm、体重 89.5 kg" },
+    { id: 7, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [3, 12], description: "空腹血糖（体检）", source: "体检报告", value: 9.05, valueUnit: "mmol/L", refRange: "3.9-6.1", notes: "报告提示增高，建议复查明确；不因一次读数自行调药" },
+    { id: 8, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [3, 12], description: "糖化血红蛋白（HbA1c）", source: "体检报告", value: 6.8, valueUnit: "%", refRange: "4.0-6.0", notes: "反映近 2-3 个月平均血糖水平" },
+    { id: 9, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [4, 11], description: "体重指数（BMI）", source: "体检报告", value: 30.5, valueUnit: "kg/m²", refRange: "18.5-23.9", notes: "身高 171.1 cm、体重 89.5 kg" },
     { id: 10, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [5], description: "肝胆彩超：脂肪肝", source: "体检报告", value: null, valueUnit: "", notes: "脂肪肝声像图（轻-中度）" },
     { id: 11, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [6], description: "肝胆彩超：胆囊息肉", source: "体检报告", value: null, valueUnit: "", notes: "息肉大小与形态以报告原件为准；建议年度复查" },
     { id: 12, date: "2026-10-18", approxDate: false, type: "检查", issueIds: [7], description: "肝胆彩超：胆囊壁胆固醇结晶", source: "体检报告", value: null, valueUnit: "", notes: "与油腻饮食、肥胖、高脂血症、缺乏运动、不吃早餐等有关" },
