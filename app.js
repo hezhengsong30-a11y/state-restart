@@ -1426,6 +1426,13 @@ function mergeArchive(incoming){
     });
     if(dup){
       if(!dup.refRange && src.refRange) dup.refRange=src.refRange;
+      /* 合并 issueIds：同一事件可能被多个问题关注（如血糖既属"空腹血糖升高"也属本期"血糖管理"），
+         去重命中时不能丢弃新的关联 id。 */
+      dup.issueIds = dup.issueIds || [];
+      (src.issueIds||[]).forEach(function(id){
+        var mapped = issueMap[id];
+        if(mapped!=null && dup.issueIds.indexOf(mapped)<0) dup.issueIds.push(mapped);
+      });
       return;
     }
     var copy = JSON.parse(JSON.stringify(src));
@@ -1657,7 +1664,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 17;
+var APP_VERSION = 18;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;

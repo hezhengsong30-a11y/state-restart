@@ -6,14 +6,14 @@ if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
 
 /* ========== 首次打开：合并写入内置体检档案 ==========
  * 按问题名称/事件内容去重，已有数据只补缺失项与参考范围，不覆盖手工修改。
- * 每次升级种子版本（当前 archiveSeedV3）都会执行一次补全。
+ * 每次升级种子版本（当前 archiveSeedV4）都会执行一次补全。
  */
 (function seedArchiveOnce(){
   var seed = window.__H30_ARCHIVE_SEED;
   try{
     if(!seed){ console.warn('内置体检档案未加载'); return; }
     A.DB.settings = A.DB.settings || {};
-    if(A.DB.settings.archiveSeedV3) return;
+    if(A.DB.settings.archiveSeedV4) return;
     if(typeof A.mergeArchive === 'function'){
       A.mergeArchive({
         archiveOnly: true,
@@ -46,6 +46,22 @@ if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
     }
     linkMonitor('体重/BMI 管理', ['体重', '体重指数']);
     linkMonitor('血糖管理', ['空腹血糖', '糖化血红蛋白']);
+    /* 清理同一问题下同名同单位的重复监测项（历史合并可能产生），保留第一条，删除多余项 */
+    var monById = {};
+    (A.DB.monitorItems||[]).forEach(function(m){ monById[m.id]=m; });
+    A.DB.issues.forEach(function(iss){
+      if(!Array.isArray(iss.monitorIds)) return;
+      var keep = {}, kept = [];
+      iss.monitorIds.forEach(function(mid){
+        var m = monById[mid];
+        if(!m) return;
+        var k = String(m.name)+'|'+String(m.unit);
+        if(keep[k]) return;
+        keep[k] = true;
+        kept.push(mid);
+      });
+      iss.monitorIds = kept;
+    });
     var b = A.DB.baseline;
     if(b){
       if(b.weight && !b.weight.date && String(b.weight.value||'')===String(seed.baseline.weight.value)){
@@ -57,7 +73,7 @@ if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
         b.constitution = JSON.parse(JSON.stringify(seed.baseline.constitution));
       }
     }
-    A.DB.settings.archiveSeedV3 = 'v3';
+    A.DB.settings.archiveSeedV4 = 'v4';
     A.save();
   }catch(e){ console.warn('seed archive skipped', e); }
 })();
@@ -247,7 +263,6 @@ function collectMonitorPoints(monitorId, issueId){
       if(!A.hasNum(ev.value)) return;
       if(!/糖化/i.test(ev.description||'')) return;
       if(normUnit(ev.valueUnit)!=='%') return;
-      if(issueId && (ev.issueIds||[]).indexOf(issueId)<0) return;
       points.push({ date: ev.date, value: A.num(ev.value), unit: ev.valueUnit, source: ev.source||'检查', measurementType:'', notes: ev.description||'' });
     });
   }
@@ -273,7 +288,6 @@ function collectMonitorPoints(monitorId, issueId){
       if(!A.hasNum(ev.value)) return;
       if(!/血糖/.test(ev.description||'')) return;
       if(normUnit(ev.valueUnit)!==wantUnit) return;
-      if(issueId && (ev.issueIds||[]).indexOf(issueId)<0) return;
       points.push({ date: ev.date, value: A.num(ev.value), unit: ev.valueUnit, source: ev.source||'检查', measurementType: /空腹/.test(ev.description)?'空腹':(/餐后/.test(ev.description)?'餐后2小时':''), notes: ev.description||'' });
     });
   }
@@ -321,8 +335,6 @@ function collectMonitorPoints(monitorId, issueId){
    */
   else {
     A.DB.events.forEach(function(ev){
-      if(!Array.isArray(ev.issueIds) || !ev.issueIds.length) return;
-      if(issueId && ev.issueIds.indexOf(issueId)<0) return;
       if(!A.hasNum(ev.value)) return;
       if(mi){
         if(mi.name && !sameLabName(ev.description, mi.name)) return;   /* 指标名不匹配则跳过 */
@@ -479,15 +491,27 @@ function renderFocusCards(){
   return html;
 }
 function renderIssueCard(issue){
-  var monitors = A.DB.monitorItems.filter(function(m){ return Array.isArray(issue.monitorIds) && issue.monitorIds.indexOf(m.id)>=0; });
-  var events = A.DB.events.filter(function(ev){ return (ev.issueIds||[]).indexOf(issue.id)>=0; }).sort(function(a,b){ return a.date>b.date?-1:1; });
-  /* 从 events 取每个 monitor 的最新一条数值 */
+  /* 同问题下同名同单位监测项去重（兼容历史合并产生的重复项） */
+  var seen = {};
+  var monitors = A.DB.monitorItems.filter(function(m){
+    return Array.isArray(issue.monitorIds) && issue.monitorIds.indexOf(m.id)>=0;
+  }).filter(function(m){
+    var k = normLabName(m.name)+'|'+normUnit(m.unit);
+    if(seen[k]) return false;
+    seen[k] = true;
+    return true;
+  });
+  /* 数值不再硬卡 issue.issueIds：按指标名+单位全局取最新值，
+     兼容历史合并时 issueIds 未重映射导致重点问题关联事件数为 0 的情况。
+     sameLabName + normUnit 双重过滤可避免不同指标混算。 */
+  var allEventsSorted = A.DB.events.slice().sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
   function latestEventFor(mon){
-    for(var i=0;i<events.length;i++){
-      if(!events[i].value && events[i].value!==0) continue;
-      if(mon.name && !sameLabName(events[i].description, mon.name)) continue;
-      if(mon.unit && events[i].valueUnit && normUnit(events[i].valueUnit)!==normUnit(mon.unit)) continue;
-      return events[i];
+    for(var i=0;i<allEventsSorted.length;i++){
+      var ev = allEventsSorted[i];
+      if(ev.value===null || ev.value===undefined || ev.value==='') continue;
+      if(mon.name && !sameLabName(ev.description, mon.name)) continue;
+      if(mon.unit && ev.valueUnit && normUnit(ev.valueUnit)!==normUnit(mon.unit)) continue;
+      return ev;
     }
     return null;
   }
