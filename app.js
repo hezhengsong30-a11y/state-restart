@@ -100,6 +100,18 @@ function fmt(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDat
 function parseD(s){ var p=s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
 function todayStr(){ return fmt(new Date()); }
 function addDays(s, n){ var d=parseD(s); d.setDate(d.getDate()+n); return fmt(d); }
+/* 按整月推算：用于中医体质复评到期提醒（不做"每30天"近似） */
+function addMonths(s, m){
+  var p=s.split('-'), d=new Date(+p[0], (+p[1])-1, +p[2]);
+  var day=d.getDate(); d.setMonth(d.getMonth()+m);
+  if(d.getDate()<day) d.setDate(0);   /* 月末回退，避免 1/31 + 1 月变成 3/3 */
+  return fmt(d);
+}
+function constReviewDue(cons){
+  if(!cons || !cons.date) return '';
+  var m = cons.reviewMonths ? +cons.reviewMonths : 3;
+  return addMonths(cons.date, m);
+}
 function dayIndex(dateStr){ return Math.round((parseD(dateStr) - parseD(cycleStart())) / 86400000) + 1; }
 function dateLabel(dateStr){ var p=dateStr.split('-'); return (+p[1])+'月'+(+p[2])+'日'; }
 function hhmm(dt){ return pad(dt.getHours())+':'+pad(dt.getMinutes()); }
@@ -139,7 +151,7 @@ function blankBase(){
     weight : { value:'89.5', date:null,   source:'体检报告', note:'' },
     glucose: { value:'7.0',  date:START,  source:'',        note:'' },
     waist  : { value:'',     date:null,   source:'',        note:'' },
-    constitution : { value:'', date:null, source:'',        note:'' },
+    constitution : { value:'', date:null, source:'',        note:'', reviewMonths:3 },
     wakeTime:'07:00', bedTime:'23:00'
   };
 }
@@ -221,11 +233,19 @@ function migrate(db){
     value:  bc.value  || '',
     date:   bc.date   || null,
     source: bc.source || '',
-    note:   bc.note   || ''
+    note:   bc.note   || '',
+    reviewMonths: bc.reviewMonths ? +bc.reviewMonths : 3
   };
   db.weeks = db.weeks || {};
   db.settings = db.settings || {};
   if(!Array.isArray(db.settings.dismissedBackup)) db.settings.dismissedBackup=[];
+  /* 兜底：任何版本、任何来源的每日记录缺 glucose 数组时补齐，避免页面渲染报错 */
+  Object.keys(db.days).forEach(function(ds){
+    var d = db.days[ds];
+    if(!d || typeof d!=='object'){ db.days[ds]=blankDay(); return; }
+    if(!Array.isArray(d.glucose)) d.glucose=[];
+    if(!d.skipped || typeof d.skipped!=='object') d.skipped={};
+  });
 
   /* v2 → v3：新增健康档案集合，旧数据完整保留 */
   if(!Array.isArray(db.cycles) || db.cycles.length===0){
@@ -577,7 +597,25 @@ function tipBlock(key,dateStr,locked){
   } else if(key==='waterMl'){ body='<div class="tip-body">'+TIPS.water+'</div>'; }
   else if(key==='sleepH'||key==='sleepRest'){ body='<div class="tip-body">'+TIPS.sleep+'</div>'; }
   else if(key==='sedentaryBreaks'){ body='<div class="tip-body">'+TIPS.sedentary+'</div>'; }
-  else if(key==='relax'){ body='<div class="tip-body">'+TIPS.relax+'<div class="tip-sub">两种做法</div>'+RELAX_TIPS+'</div>'; }
+  else if(key==='relax'){
+    body='<div class="tip-body">'+TIPS.relax+'<div class="tip-sub">两种做法</div>'+RELAX_TIPS
+      + '<div class="acu-wrap">'
+      + '<svg class="acu-svg" viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="气海与关元位置示意图">'
+      + '<rect x="38" y="8" width="84" height="184" rx="34" fill="#f8faf9" stroke="#cfd8d3"/>'
+      + '<line x1="80" y1="18" x2="80" y2="186" stroke="#dde5e1" stroke-dasharray="3 4"/>'
+      + '<circle cx="80" cy="78" r="9" fill="#fff" stroke="#9aa8a1" stroke-width="1.5"/>'
+      + '<text x="80" y="81" font-size="8" text-anchor="middle" fill="#7b8a83">脐</text>'
+      + '<circle cx="80" cy="104" r="4.5" fill="#2f7d5b"/>'
+      + '<circle cx="80" cy="126" r="4.5" fill="#d97706"/>'
+      + '<line x1="88" y1="104" x2="118" y2="100" stroke="#2f7d5b" stroke-width="1"/>'
+      + '<text x="121" y="103" font-size="9" fill="#2f7d5b">气海</text>'
+      + '<line x1="88" y1="126" x2="118" y2="130" stroke="#d97706" stroke-width="1"/>'
+      + '<text x="121" y="133" font-size="9" fill="#b45309">关元</text>'
+      + '<text x="80" y="190" font-size="7.5" text-anchor="middle" fill="#8b9a93">前正中线 · 脐下 2 / 4 横指</text>'
+      + '</svg>'
+      + '<div class="acu-cap">位置示意，仅作参考；孕妇、腹部术后或皮肤异常者请先咨询医生</div>'
+      + '</div></div>';
+  }
   if(!body) return '';
   return '<details class="tips"><summary>查看方法</summary>'+body+'</details>';
 }
@@ -1159,9 +1197,11 @@ function renderSetting(){
     + '</div>'
     + '<div class="field-row">'
     + '<div class="field"><label>来源</label><input type="text" id="s-const-src" value="'+esc(b.constitution.source)+'" placeholder="如：体检机构中医测评"></div>'
-    + '<div class="field"><label>备注（如复评频率）</label><input type="text" id="s-const-note" value="'+esc(b.constitution.note)+'" placeholder="例如：每3个月复评一次"></div>'
+    + '<div class="field"><label>复评间隔（月）</label><input type="number" min="1" max="24" id="s-const-months" value="'+(b.constitution.reviewMonths||3)+'" placeholder="3"></div>'
     + '</div>'
-    + '<div class="base-cur">当前：'+esc(b.constitution.value||'—')+'</div></div>';
+    + '<div class="field"><label>备注（可选）</label><input type="text" id="s-const-note" value="'+esc(b.constitution.note)+'" placeholder="例如：气虚质宜柔缓运动"></div>'
+    + '<div class="base-cur">当前：'+esc(b.constitution.value||'—')
+    + (b.constitution.value && b.constitution.date?' · 下次复评约 '+constReviewDue(b.constitution):'')+'</div></div>';
   html += '<div class="field-row">'
     + '<div class="field"><label>目标起床时间</label><input type="time" id="s-wake" value="'+esc(b.wakeTime)+'"></div>'
     + '<div class="field"><label>目标上床时间</label><input type="time" id="s-bed" value="'+esc(b.bedTime)+'"></div>'
@@ -1174,20 +1214,30 @@ function renderSetting(){
     + '<div class="setting-row"><div>导出 CSV<div class="desc">表头标明字段与单位，可用 Excel 打开</div></div><button class="btn ghost small" id="btn-exp-csv">导出</button></div>'
     + '<div class="setting-row"><div>导入备份<div class="desc">导入前会显示备份信息，可选择合并或替换</div></div><button class="btn ghost small" id="btn-import">导入</button></div>'
     + '<input type="file" id="file-import" accept=".json" style="display:none">'
+    + '<div class="setting-row"><div>粘贴导入<div class="desc">手机不便选文件时，把补录包文本粘贴进来</div></div><button class="btn ghost small" id="btn-import-paste">粘贴</button></div>'
     + '<div class="setting-row"><div>清空全部数据<div class="desc">不可恢复，需要二次确认，请先导出备份</div></div><button class="btn danger small" id="btn-clear">清空</button></div>'
     + '</div>';
 
   /* 食谱参考（P2）：来自体检报告营养方案的通用整理，供参考 */
+  var RECIPE_ROWS = [
+    ['一','燕麦牛奶粥＋鸡蛋','杂粮饭＋清蒸鲈鱼＋西兰花','小米南瓜粥＋凉拌菠菜＋少量牛肉','人参红枣茶'],
+    ['二','全麦面包＋鸡蛋＋黄瓜','糙米饭＋白灼虾＋炒油菜','山药粥＋清炒莴笋＋豆腐','黄芪太子参茶'],
+    ['三','无糖豆浆＋蒸蛋羹＋全麦馒头','二米饭＋香菇蒸鸡＋冬瓜汤','燕麦粥＋清蒸鳕鱼＋拌木耳','红枣茶（血糖高者慎加桂圆）'],
+    ['四','燕麦牛奶＋水煮蛋','荞麦面＋瘦肉＋青菜','小米粥＋少量卤牛肉＋清炒时蔬','党参黄芪茶'],
+    ['五','全麦三明治＋牛奶','糙米饭＋清蒸鱼＋芦笋','无糖八宝粥＋白灼菜心＋鸡蛋','枸杞黄芪茶'],
+    ['六','燕麦粥＋鸡蛋＋黄瓜','杂粮饭＋白切鸡（去皮）＋菠菜','山药瘦肉汤＋青菜','人参红枣茶'],
+    ['日','无糖酸奶＋全麦面包＋鸡蛋','糙米饭＋清蒸虾＋西兰花','小米粥＋豆腐＋拌莴笋','黄芪红枣茶']
+  ];
   html += '<details class="fold card"><summary>食谱参考 <span class="fold-sub">气虚质 · 示例，不替代营养科方案</span></summary>'
     + '<div class="chart-note" style="text-align:left;margin:2px 0 8px">整理自体检报告营养调理部分，供参考。茶饮含药食同源成分，<b>肝功能异常期间请先咨询医生</b>再决定是否饮用。含糖食材已尽量避开或标注，血糖管理期间控糖优先。</div>'
     + '<table class="recipe-table"><thead><tr><th></th><th>早餐</th><th>午餐</th><th>晚餐</th><th>当日茶饮</th></tr></thead><tbody>'
-    + '<tr><td>一</td><td>燕麦牛奶粥＋鸡蛋</td><td>杂粮饭＋清蒸鲈鱼＋西兰花</td><td>小米南瓜粥＋凉拌菠菜＋少量牛肉</td><td>人参红枣茶</td></tr>'
-    + '<tr><td>二</td><td>全麦面包＋鸡蛋＋黄瓜</td><td>糙米饭＋白灼虾＋炒油菜</td><td>山药粥＋清炒莴笋＋豆腐</td><td>黄芪太子参茶</td></tr>'
-    + '<tr><td>三</td><td>无糖豆浆＋蒸蛋羹＋全麦馒头</td><td>二米饭＋香菇蒸鸡＋冬瓜汤</td><td>燕麦粥＋清蒸鳕鱼＋拌木耳</td><td>红枣茶（血糖高者慎加桂圆）</td></tr>'
-    + '<tr><td>四</td><td>燕麦牛奶＋水煮蛋</td><td>荞麦面＋瘦肉＋青菜</td><td>小米粥＋少量卤牛肉＋清炒时蔬</td><td>党参黄芪茶</td></tr>'
-    + '<tr><td>五</td><td>全麦三明治＋牛奶</td><td>糙米饭＋清蒸鱼＋芦笋</td><td>无糖八宝粥＋白灼菜心＋鸡蛋</td><td>枸杞黄芪茶</td></tr>'
-    + '<tr><td>六</td><td>燕麦粥＋鸡蛋＋黄瓜</td><td>杂粮饭＋白切鸡（去皮）＋菠菜</td><td>山药瘦肉汤＋青菜</td><td>人参红枣茶</td></tr>'
-    + '<tr><td>日</td><td>无糖酸奶＋全麦面包＋鸡蛋</td><td>糙米饭＋清蒸虾＋西兰花</td><td>小米粥＋豆腐＋拌莴笋</td><td>黄芪红枣茶</td></tr>'
+    + RECIPE_ROWS.map(function(r){
+        return '<tr><td>'+r[0]+'</td>'
+          + '<td data-label="早餐">'+r[1]+'</td>'
+          + '<td data-label="午餐">'+r[2]+'</td>'
+          + '<td data-label="晚餐">'+r[3]+'</td>'
+          + '<td data-label="当日茶饮">'+r[4]+'</td></tr>';
+      }).join('')
     + '</tbody></table>'
     + '<div class="chart-note" style="text-align:left;margin-top:8px">气虚质宜食（补气为主）：粮食类如粳米、小米、糯米、燕麦；蔬菜如山药、南瓜、胡萝卜、香菇；肉禽如牛肉、鸡肉、鲫鱼；豆类如豆腐、黄豆。不宜生冷苦寒、辛辣刺激。份量按每日约1300～1400千卡把握，具体以营养科方案为准。</div>'
     + '</details>';
@@ -1220,7 +1270,8 @@ function renderSetting(){
     b.wakeTime=$('#s-wake',el).value;
     b.bedTime=$('#s-bed',el).value;
     b.constitution={ value:$('#s-const-val',el).value, date:$('#s-const-date',el).value||null,
-      source:$('#s-const-src',el).value, note:$('#s-const-note',el).value };
+      source:$('#s-const-src',el).value, note:$('#s-const-note',el).value,
+      reviewMonths: Math.max(1, +$('#s-const-months',el).value || 3) };
     save(); renderTrend(); renderToday(); toast('基线已保存');
   });
 
@@ -1255,6 +1306,26 @@ function renderSetting(){
     rd.onerror=function(){ toast('读取失败，原有数据已保留'); };
     rd.readAsText(f);
   });
+  $('#btn-import-paste',el).addEventListener('click',function(){
+    showModal({
+      title:'粘贴导入',
+      body:'<div class="modal-note">把复制的补录包文本粘贴到下面（以 { 开头）。只补充本机没有的条目，不覆盖已有记录。</div>'
+        + '<textarea id="paste-json" rows="8" style="width:100%;box-sizing:border-box;font-size:.72rem;font-family:ui-monospace,Menlo,monospace;line-height:1.4;border:1px solid var(--border);border-radius:8px;padding:8px"></textarea>',
+      buttons:[
+        {label:'取消',cls:'ghost',onClick:closeModal},
+        {label:'解析',cls:'',onClick:function(){
+          var t=($('#paste-json').value||'').trim();
+          var obj=null;
+          try{ obj=JSON.parse(t); }catch(err){ obj=null; }
+          if(!obj || typeof obj!=='object' || !obj.days || !obj.baseline){
+            toast('内容不是有效的补录包'); return;
+          }
+          closeModal();
+          openImportDialog(obj);
+        }}
+      ]
+    });
+  });
   $('#btn-clear',el).addEventListener('click',function(){
     openClearDialog();
   });
@@ -1275,35 +1346,132 @@ function baseBlock(key,name,unit,ph,id){
 }
 
 /* 导入对话框 */
+/* ===== 健康档案合并 =====
+ * 用于体检报告补录包、他人档案备份的合并：
+ * - 按内容去重，重复导入不会产生重复条目
+ * - 外部 ID 与本地冲突时重新编号，并同步 issueIds / monitorIds 引用
+ */
+function maxId(arr){ var m=0; (arr||[]).forEach(function(o){ if(o && +o.id>m) m=+o.id; }); return m; }
+function mergeArchive(incoming){
+  var stat = { issues:0, monitors:0, events:0, reviews:0 };
+  var issueMap = {}, monMap = {};
+
+  (incoming.issues||[]).forEach(function(src){
+    if(!src || !src.name) return;
+    var dup = DB.issues.find(function(x){
+      return x.name===src.name && (x.occurDate||'')===(src.occurDate||'');
+    });
+    if(dup){ issueMap[src.id]=dup.id; return; }
+    var copy = JSON.parse(JSON.stringify(src));
+    copy.id = maxId(DB.issues)+1;
+    copy.monitorIds = [];
+    copy.createdAt = copy.createdAt || new Date().toISOString();
+    copy.updatedAt = copy.updatedAt || copy.createdAt;
+    issueMap[src.id] = copy.id;
+    DB.issues.push(copy); stat.issues++;
+  });
+
+  (incoming.monitorItems||[]).forEach(function(src){
+    if(!src || !src.name) return;
+    var iid = issueMap[src.issueId];
+    if(iid==null && src.issueId!=null){
+      var local = DB.issues.find(function(x){ return x.id===src.issueId; });
+      iid = local ? local.id : null;
+    }
+    var dup = DB.monitorItems.find(function(x){
+      return x.name===src.name && (x.issueId||null)===(iid||null);
+    });
+    if(dup){ monMap[src.id]=dup.id; }
+    else{
+      var copy = JSON.parse(JSON.stringify(src));
+      copy.id = maxId(DB.monitorItems)+1;
+      copy.issueId = iid||null;
+      monMap[src.id] = copy.id;
+      DB.monitorItems.push(copy); stat.monitors++;
+    }
+    var issue = DB.issues.find(function(x){ return x.id===iid; });
+    if(issue && monMap[src.id]!=null){
+      issue.monitorIds = issue.monitorIds||[];
+      if(issue.monitorIds.indexOf(monMap[src.id])<0) issue.monitorIds.push(monMap[src.id]);
+    }
+  });
+
+  (incoming.events||[]).forEach(function(src){
+    if(!src) return;
+    var dup = DB.events.find(function(x){
+      return x.date===src.date && x.type===src.type
+        && (x.description||'')===(src.description||'')
+        && String(x.value==null?'':x.value)===String(src.value==null?'':src.value)
+        && (x.valueUnit||'')===(src.valueUnit||'');
+    });
+    if(dup) return;
+    var copy = JSON.parse(JSON.stringify(src));
+    copy.id = maxId(DB.events)+1;
+    copy.issueIds = (src.issueIds||[]).map(function(id){ return issueMap[id]; })
+      .filter(function(id){ return id!=null; });
+    DB.events.push(copy); stat.events++;
+  });
+
+  (incoming.reviews||[]).forEach(function(src){
+    if(!src) return;
+    var dup = DB.reviews.find(function(x){
+      return (x.reviewDate||'')===(src.reviewDate||'') && (x.cycleId||null)===(src.cycleId||null);
+    });
+    if(dup) return;
+    var copy = JSON.parse(JSON.stringify(src));
+    copy.id = maxId(DB.reviews)+1;
+    copy.evaluations = (src.evaluations||[]).map(function(e){
+      var mapped = issueMap[e.issueId];
+      return Object.assign({}, e, { issueId: mapped!=null ? mapped : e.issueId });
+    });
+    DB.reviews.push(copy); stat.reviews++;
+  });
+
+  (incoming.cycles||[]).forEach(function(src){
+    if(!src || !src.start) return;
+    var exists = DB.cycles.some(function(x){
+      return x.id===src.id || (x.start===src.start && x.end===src.end);
+    });
+    if(!exists) DB.cycles.push(JSON.parse(JSON.stringify(src)));
+  });
+
+  (incoming.trash||[]).forEach(function(t){ if(t && t.obj) DB.trash.push(t); });
+
+  return stat;
+}
+
 function openImportDialog(obj){
+  var archiveOnly = obj.archiveOnly === true;
   var dates=Object.keys(obj.days||{}).filter(function(ds){ return dayIndex(ds)>=1 && dayIndex(ds)<=TOTAL; });
   var conflicts=dates.filter(function(ds){ return dayHasContent(DB.days[ds]); });
   var backupAt = obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('zh-CN') : '未标注';
-  var body='<div class="modal-line"><b>备份生成时间：</b>'+esc(backupAt)+'</div>'
-    + '<div class="modal-line"><b>备份内计划内记录：</b>'+dates.length+' 天</div>'
-    + '<div class="modal-line"><b>与本机冲突的记录：</b>'+conflicts.length+' 天</div>'
-    + '<div class="modal-note">冲突不会静默覆盖，请选择处理方式。</div>'
-    + (conflicts.length? '<div class="modal-line"><label class="radio"><input type="radio" name="conflict" value="keep" checked> 冲突保留本机记录</label>'
-        + '<label class="radio"><input type="radio" name="conflict" value="use"> 冲突使用备份记录</label></div>' : '')
-    + '<div class="modal-note">导入失败时本地数据不会被改动。</div>';
-  showModal({
-    title:'导入备份',
-    body:body,
-    buttons:[
-      {label:'取消',cls:'ghost',onClick:closeModal},
-      {label:'合并导入',cls:'secondary',onClick:function(){
-        var useBackup=false;
-        var r=document.querySelector('input[name="conflict"]:checked');
-        if(r && r.value==='use') useBackup=true;
-        doImport(obj,'merge',useBackup);
-      }},
-      {label:'替换全部',cls:'',onClick:function(){ doImport(obj,'replace',true); }}
-    ]
-  });
+  var body='<div class="modal-line"><b>备份生成时间：</b>'+esc(backupAt)+'</div>';
+  if(archiveOnly){
+    body += '<div class="modal-line"><b>档案补录包：</b>问题 '+((obj.issues||[]).length)+' 项 · 事件 '
+      + ((obj.events||[]).length)+' 条 · 监测项 '+((obj.monitorItems||[]).length)+' 项</div>'
+      + '<div class="modal-note">合并导入只补充本机没有的条目，不覆盖、不删除已有记录；重复导入同一份补录包也不会产生重复条目。</div>';
+  }else{
+    body += '<div class="modal-line"><b>备份内计划内记录：</b>'+dates.length+' 天</div>'
+      + '<div class="modal-line"><b>与本机冲突的记录：</b>'+conflicts.length+' 天</div>'
+      + '<div class="modal-note">冲突不会静默覆盖，请选择处理方式。</div>'
+      + (conflicts.length? '<div class="modal-line"><label class="radio"><input type="radio" name="conflict" value="keep" checked> 冲突保留本机记录</label>'
+          + '<label class="radio"><input type="radio" name="conflict" value="use"> 冲突使用备份记录</label></div>' : '');
+  }
+  body += '<div class="modal-note">导入失败时本地数据不会被改动。</div>';
+  var btns = [{label:'取消',cls:'ghost',onClick:closeModal}];
+  btns.push({label:'合并导入',cls:'secondary',onClick:function(){
+    var useBackup=false;
+    var r=document.querySelector('input[name="conflict"]:checked');
+    if(r && r.value==='use') useBackup=true;
+    doImport(obj,'merge',useBackup);
+  }});
+  if(!archiveOnly) btns.push({label:'替换全部',cls:'',onClick:function(){ doImport(obj,'replace',true); }});
+  showModal({ title:'导入备份', body:body, buttons:btns });
 }
 function doImport(obj,mode,useBackup){
   try{
     var incoming=migrate(JSON.parse(JSON.stringify(obj)));
+    var stat=null;
     if(mode==='replace'){
       DB=incoming;
     } else {
@@ -1312,11 +1480,24 @@ function doImport(obj,mode,useBackup){
       });
       /* 基线：无冲突时保留本机；用户选择使用备份时同步 */
       if(useBackup) DB.baseline=incoming.baseline;
+      else{
+        /* 本机未记录时，用导入包补齐基线（如体检报告里的体重与中医体质），不覆盖已有记录 */
+        ['weight','waist','constitution'].forEach(function(k){
+          var inc=incoming.baseline && incoming.baseline[k];
+          var cur=DB.baseline[k]||{};
+          /* 没有任何日期，且本机没有值或值相同（如默认的 89.5）时，才采用导入包的日期与来源 */
+          if(inc && inc.date && !cur.date && (!cur.value || String(cur.value)===String(inc.value))) DB.baseline[k]=inc;
+        });
+      }
       Object.keys(incoming.weeks||{}).forEach(function(w){ DB.weeks[w]=incoming.weeks[w]; });
+      stat=mergeArchive(incoming);
     }
     DB.settings.lastImportAt=new Date().toLocaleString('zh-CN');
     if(!save()) throw new Error('save failed');
-    closeModal(); renderAll(); toast(mode==='replace'?'已替换导入':'已合并导入');
+    closeModal(); renderAll();
+    var extra = stat && (stat.issues||stat.events)
+      ? '（新增问题 '+stat.issues+' 项、事件 '+stat.events+' 条）' : '';
+    toast((mode==='replace'?'已替换导入':'已合并导入')+extra);
   }catch(e){
     closeModal(); toast('导入失败，原有数据已保留');
   }
@@ -1438,6 +1619,7 @@ window.__h30_api = {
   hasNum: hasNum, num: num,
   parseD: parseD, fmt: fmt, pad: pad, hhmm: hhmm,
   todayStr: todayStr, addDays: addDays, dayIndex: dayIndex, dateLabel: dateLabel,
+  addMonths: addMonths, constReviewDue: constReviewDue,
   triOf: triOf, isSubmitted: isSubmitted, dayHasContent: dayHasContent,
   blankDB: blankDB, blankDay: blankDay, blankBase: blankBase, migrate: migrate,
   cycleStart: cycleStart, cycleEnd: cycleEnd, cycleTotal: cycleTotal, cycleLabel: cycleLabel, currentCycle: currentCycle,

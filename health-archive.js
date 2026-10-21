@@ -126,6 +126,17 @@ function deleteMonitorItem(id){
   return true;
 }
 
+/* 指标名归一化：去括号注释、去空格、转大写，用于匹配「ALT」与「ALT（谷丙转氨酶）」 */
+function normLabName(s){
+  return String(s||'').replace(/[（(][^）)]*[）)]/g,'').replace(/[\s:：]/g,'').toUpperCase();
+}
+function sameLabName(desc, name){
+  var d=normLabName(desc), n=normLabName(name);
+  if(!d || !n) return false;
+  return d===n || d.indexOf(n)>=0 || n.indexOf(d)>=0;
+}
+function normUnit(u){ return String(u||'').replace(/\s/g,'').toLowerCase(); }
+
 /* ========== 监测数据点来源汇总 ==========
  * 同一 issue 关联的数值型监测项，优先从 DB.days[].glucose[] / weight / waist / 等读取；
  * 也支持 events 里直接带的 value / valueUnit；monitorItems 定义后，可作为自定义监测。
@@ -136,7 +147,7 @@ function collectMonitorPoints(monitorId, issueId){
   var mi = A.DB.monitorItems.find(function(x){ return x.id===monitorId; });
   var kind = mi ? mi.kind : 'num';
 
-  /* 血糖 → 从 days[].glucose[] 读 */
+  /* 血糖 → 从 days[].glucose[] 读，并合并「检查」事件里的血糖值 */
   if(mi && /血糖|glucose/i.test(mi.name)){
     Object.keys(A.DB.days).sort().forEach(function(ds){
       var g = A.DB.days[ds].glucose;
@@ -153,12 +164,19 @@ function collectMonitorPoints(monitorId, issueId){
         }
       });
     });
+    A.DB.events.forEach(function(ev){
+      if(!A.hasNum(ev.value)) return;
+      if(!/血糖|糖化/i.test(ev.description||'')) return;
+      if(normUnit(ev.valueUnit)!=='mmol/l' && normUnit(ev.valueUnit)!=='%') return;
+      if(issueId && (ev.issueIds||[]).indexOf(issueId)<0) return;
+      points.push({ date: ev.date, value: A.num(ev.value), unit: ev.valueUnit, source: ev.source||'检查', measurementType: /空腹/.test(ev.description)?'空腹':(/餐后/.test(ev.description)?'餐后2小时':''), notes: ev.description||'' });
+    });
   }
-  /* 体重 → 从 days[].weight 读，基线作为起点 */
+  /* 体重 → 从 days[].weight 读；基线仅在「有明确测量日期」时才进图，避免把未知日期当成周期首日 */
   else if(mi && /体重|weight/i.test(mi.name)){
     var bw = A.DB.baseline.weight || {};
-    if(A.hasNum(bw.value)){
-      points.push({ date: bw.date || A.cycleStart(), value: A.num(bw.value), unit: 'kg', source: bw.source||'基线', measurementType:'', notes: bw.note||'' });
+    if(A.hasNum(bw.value) && bw.date){
+      points.push({ date: bw.date, value: A.num(bw.value), unit: 'kg', source: bw.source||'基线', measurementType:'', notes: bw.note||'' });
     }
     Object.keys(A.DB.days).sort().forEach(function(ds){
       var d = A.DB.days[ds];
@@ -167,10 +185,10 @@ function collectMonitorPoints(monitorId, issueId){
       }
     });
   }
-  /* 腰围 → days[].waist */
+  /* 腰围 → days[].waist，基线同上 */
   else if(mi && /腰围|waist/i.test(mi.name)){
     var bwa = A.DB.baseline.waist || {};
-    if(A.hasNum(bwa.value)) points.push({ date: bwa.date || A.cycleStart(), value:A.num(bwa.value), unit:'cm', source:bwa.source||'基线', measurementType:'', notes:'' });
+    if(A.hasNum(bwa.value) && bwa.date) points.push({ date: bwa.date, value:A.num(bwa.value), unit:'cm', source:bwa.source||'基线', measurementType:'', notes:'' });
     Object.keys(A.DB.days).sort().forEach(function(ds){
       if(A.hasNum(A.DB.days[ds].waist)) points.push({ date:ds, value:A.num(A.DB.days[ds].waist), unit:'cm', source:'当日记录', measurementType:'', notes:'' });
     });
@@ -193,14 +211,19 @@ function collectMonitorPoints(monitorId, issueId){
       if(A.hasNum(A.DB.days[ds].stress)) points.push({ date:ds, value:A.num(A.DB.days[ds].stress), unit:'0-10', source:'当日记录', measurementType:'', notes:'' });
     });
   }
-  /* 通用：从 events.value 读（无明确字段映射时） */
+  /* 通用：从 events.value 读（化验复查等）
+   * 必须按指标名和单位双重匹配，避免把同一问题的 ALT / AST / GGT 混成一条线
+   */
   else {
     A.DB.events.forEach(function(ev){
       if(!Array.isArray(ev.issueIds) || !ev.issueIds.length) return;
       if(issueId && ev.issueIds.indexOf(issueId)<0) return;
-      if(A.hasNum(ev.value)){
-        points.push({ date: ev.date, value: A.num(ev.value), unit: ev.valueUnit || (mi?mi.unit:''), source: ev.source || '事件', measurementType: '', notes: ev.notes || ev.description || '' });
+      if(!A.hasNum(ev.value)) return;
+      if(mi){
+        if(mi.name && !sameLabName(ev.description, mi.name)) return;   /* 指标名不匹配则跳过 */
+        if(mi.unit && ev.valueUnit && normUnit(ev.valueUnit)!==normUnit(mi.unit)) return; /* 单位不同不混算 */
       }
+      points.push({ date: ev.date, value: A.num(ev.value), unit: ev.valueUnit || (mi?mi.unit:''), source: ev.source || '事件', measurementType: '', notes: ev.notes || ev.description || '' });
     });
   }
   points.sort(function(a,b){ return a.date<b.date?-1:1; });
@@ -315,7 +338,18 @@ function renderOverview(){
   html += '<div><span class="ao-label">重点问题</span><div class="ao-val">'+(focusIssue?A.esc(focusIssue.name):'<span class="muted">未设置</span>')+'</div></div>';
   html += '<div><span class="ao-label">下次复盘</span><div class="ao-val">'+(c.reviewDate?A.dateLabel(c.reviewDate):'<span class="muted">待设置</span>')+'</div></div>';
   html += '<div><span class="ao-label">中医体质</span><div class="ao-val">'+(cons.value?A.esc(cons.value):'<span class="muted">未记录</span>')+'</div>'
-    + (cons.date||cons.note?'<div class="ao-item-kws">'+(cons.date?A.dateLabel(cons.date):'')+(cons.note?(cons.date?' · ':'')+A.esc(cons.note):'')+'</div>':'')+'</div>';
+    + (cons.date||cons.note?'<div class="ao-item-kws">'+(cons.date?A.dateLabel(cons.date):'')+(cons.note?(cons.date?' · ':'')+A.esc(cons.note):'')+'</div>':'')
+    + (function(){
+        var due = A.constReviewDue ? A.constReviewDue(cons) : '';
+        if(!due) return '';
+        var today = A.todayStr();
+        if(today >= due){
+          var days = Math.round((A.parseD(today)-A.parseD(due))/86400000);
+          return '<div class="ao-due">复评已到期'+(days>0?'（超 '+days+' 天）':'')+' · 建议在本周内复评</div>';
+        }
+        return '<div class="ao-item-kws">下次复评约 '+A.dateLabel(due)+'</div>';
+      })()
+    + '</div>';
   html += '</div>';
   html += '<div class="chart-note" style="margin-top:8px">本轮关注重点的变化，不要求所有问题在一个周期内解决。</div>';
   html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
@@ -411,7 +445,10 @@ function renderEventTimeline(){
   var show = evs.slice(0,5);
   var more = evs.length - show.length;
   var html='<div class="card"><div class="card-title">关键时间点'
+    + '<span style="display:flex;gap:6px">'
+    + '<button class="btn small ghost" id="btn-lab-batch">批量录化验</button>'
     + '<button class="btn small secondary" id="btn-add-event">＋添加</button>'
+    + '</span>'
     + '</div>';
   if(show.length===0){
     html += '<div class="empty">暂无事件。体检、就诊、用药、症状变化、计划开始都可以记在这里。</div>';
@@ -552,7 +589,13 @@ function drawAllCharts(){
     var ctx = cv.getContext('2d');
     ctx.scale(2,2);
     var c = A.currentCycle();
-    drawHealthChart(cv, ctx, w, h, pts, c.start, c.end);
+    /* 横轴范围：以周期为主，但纳入周期外的真实记录（如体检日期在周期前），避免点画到图外 */
+    var start=c.start, end=c.end;
+    pts.forEach(function(p){
+      if(p.date && p.date<start) start=p.date;
+      if(p.date && p.date>end)   end=p.date;
+    });
+    drawHealthChart(cv, ctx, w, h, pts, start, end);
   });
 }
 
@@ -562,6 +605,7 @@ function bindArchive(){
   if(!root) return;
   A.$$('#btn-add-issue', root).forEach(function(b){ b.addEventListener('click', function(){ openIssueDialog(null); }); });
   A.$$('#btn-add-event', root).forEach(function(b){ b.addEventListener('click', function(){ openEventDialog(null); }); });
+  A.$$('#btn-lab-batch', root).forEach(function(b){ b.addEventListener('click', openLabBatchDialog); });
   A.$$('#btn-do-review', root).forEach(function(b){ b.addEventListener('click', openReviewDialog); });
   A.$$('#btn-cycle-change', root).forEach(function(b){ b.addEventListener('click', openCycleDialog); });
 
@@ -823,6 +867,106 @@ function openEventDialog(ev){
       var d=A.$('#q-ev-desc'), u=A.$('#q-ev-unit');
       if(d) d.value=ch.getAttribute('data-lab');
       if(u) u.value=ch.getAttribute('data-labu');
+    });
+  });
+}
+
+/* ========== 批量录入化验单 ========== */
+var LAB_PRESETS = [
+  ['空腹血糖','mmol/L'],['餐后2小时血糖','mmol/L'],['糖化血红蛋白','%'],
+  ['总胆固醇','mmol/L'],['甘油三酯','mmol/L'],['低密度脂蛋白胆固醇','mmol/L'],['高密度脂蛋白胆固醇','mmol/L'],
+  ['ALT','U/L'],['AST','U/L'],['GGT','U/L'],['血尿酸','μmol/L'],['肌酐','μmol/L']
+];
+
+function labRowHtml(name, unit){
+  var issueOpts = '<option value="">不关联</option>'
+    + A.DB.issues.filter(function(i){ return !i.archived; })
+        .map(function(i){ return '<option value="'+i.id+'">'+A.esc(i.name)+'</option>'; }).join('');
+  return '<div class="lab-row" data-row>'
+    + '<input class="lr-name" placeholder="指标名（如 ALT）" value="'+A.esc(name||'')+'">'
+    + '<input class="lr-value" type="number" step="any" placeholder="数值">'
+    + '<input class="lr-unit" placeholder="单位" value="'+A.esc(unit||'')+'">'
+    + '<select class="lr-issue">'+issueOpts+'</select>'
+    + '<button type="button" class="lr-del" title="移除">✕</button>'
+    + '</div>';
+}
+
+function openLabBatchDialog(){
+  var html = '<div class="chart-note" style="text-align:left;margin-bottom:8px">一次录完整张化验单：点下方指标可直接添加一行，填数值即可。保存后会同时生成事件，并自动把该指标接入对应问题的趋势。</div>';
+  html += '<div class="field-row"><div class="field"><label>检查日期</label><input id="lab-date" type="date" value="'+A.todayStr()+'"></div>'
+    + '<div class="field"><label>来源</label><input id="lab-source" placeholder="如：体检报告 / 医院复查"></div></div>';
+  html += '<div class="chip-row" style="margin-bottom:10px">'
+    + LAB_PRESETS.map(function(x){ return '<button type="button" class="chip lab-pre" data-n="'+x[0]+'" data-u="'+x[1]+'">'+x[0]+'</button>'; }).join('')
+    + '</div>';
+  html += '<div class="lab-head"><span>指标</span><span>数值</span><span>单位</span><span>关联问题</span><span></span></div>';
+  html += '<div id="lab-rows">'+labRowHtml('','')+'</div>';
+  html += '<button type="button" class="btn small ghost" id="lab-add-row" style="margin-top:6px">＋自定义一行</button>';
+
+  A.showModal({
+    title:'批量录入化验',
+    body:html,
+    buttons:[
+      {label:'取消',cls:'ghost',onClick:A.closeModal},
+      {label:'保存全部',cls:'',onClick:function(){
+        var date = A.$('#lab-date').value || A.todayStr();
+        var source = A.$('#lab-source').value.trim() || '检查';
+        var n=0, created=[];
+        A.$$('#lab-rows .lab-row').forEach(function(row){
+          var nameEl=row.querySelector('.lr-name');
+          var valEl =row.querySelector('.lr-value');
+          var unitEl=row.querySelector('.lr-unit');
+          var issEl =row.querySelector('.lr-issue');
+          var name=(nameEl?nameEl.value:'').trim();
+          var raw =(valEl?valEl.value:'').trim();
+          if(!name || raw==='') return;
+          if(!A.hasNum(raw)) return;
+          var val=A.num(raw), unit=(unitEl?unitEl.value:'').trim();
+          var iid = issEl && issEl.value ? +issEl.value : null;
+          addEvent({ type:'检查', date:date, issueIds: iid?[iid]:[], description:name, value:val, valueUnit:unit, source:source });
+          n++;
+          if(iid){
+            /* 确保该问题有同名监测项，并建立关联，让复查值进趋势图 */
+            var mi = A.DB.monitorItems.find(function(m){ return m.issueId===iid && sameLabName(m.name,name); });
+            if(!mi){
+              mi = addMonitorItem({ issueId:iid, name:name, kind:'num', unit:unit });
+            }
+            var issue = A.DB.issues.find(function(i){ return i.id===iid; });
+            if(issue){
+              issue.monitorIds = issue.monitorIds||[];
+              if(issue.monitorIds.indexOf(mi.id)<0) issue.monitorIds.push(mi.id);
+            }
+            created.push(name);
+          }
+        });
+        if(!n){ A.toast('请至少填写一条有数值的指标'); return; }
+        A.save(); A.closeModal(); A.renderAll();
+        A.toast('已录入 '+n+' 项化验'+(created.length?'，并接入趋势':''));
+      }}
+    ]
+  });
+
+  A.$$('#modal .lab-pre').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      var box=A.$('#lab-rows');
+      if(!box) return;
+      var wrap=document.createElement('div');
+      wrap.innerHTML=labRowHtml(ch.getAttribute('data-n'), ch.getAttribute('data-u'));
+      var row=wrap.firstChild;
+      /* 只有一个问题时默认关联它，减少选择成本 */
+      var live=A.DB.issues.filter(function(i){ return !i.archived; });
+      if(live.length===1){ row.querySelector('.lr-issue').value=String(live[0].id); }
+      box.appendChild(row);
+      var v=row.querySelector('.lr-value'); if(v) v.focus();
+    });
+  });
+  var addRow=A.$('#lab-add-row');
+  if(addRow) addRow.addEventListener('click',function(){
+    var box=A.$('#lab-rows'); if(!box) return;
+    var wrap=document.createElement('div'); wrap.innerHTML=labRowHtml('',''); box.appendChild(wrap.firstChild);
+  });
+  A.$$('#modal .lr-del').forEach(function(b){
+    b.addEventListener('click',function(){
+      var row=b.closest('.lab-row'); if(row) row.parentNode.removeChild(row);
     });
   });
 }
