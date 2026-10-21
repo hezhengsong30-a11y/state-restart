@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>诊断页</title>
+</head>
+<body style="font-family:monospace;font-size:13px;padding:12px;line-height:1.6">
+<div style="font-size:15px;font-weight:700;margin-bottom:8px">请截图本页发给开发者</div>
+<pre id="out" style="white-space:pre-wrap;word-break:break-all"></pre>
+<script>
+var out=[];
+function log(k,v){ out.push(k+' = '+v); }
+try{
+  log('UA', navigator.userAgent);
+  log('fetch', !!window.fetch);
+  log('Promise', !!window.Promise);
+  log('Array.find', !!Array.prototype.find);
+  log('Array.includes', !!Array.prototype.includes);
+  log('Object.assign', !!Object.assign);
+  log('details_support', ('open' in document.createElement('details')));
+  var raw = null;
+  try{ raw = localStorage.getItem('health30_v1'); }catch(e){ log('localStorage_ERROR', e.message); }
+  log('hasData', !!raw);
+  if(raw){
+    var d = JSON.parse(raw);
+    log('db.version', d.version);
+    log('issues', (d.issues||[]).length);
+    log('events', (d.events||[]).length);
+    log('monitors', (d.monitorItems||[]).length);
+    log('seedV1', d.settings && d.settings.archiveSeedV1);
+    log('seedV2', d.settings && d.settings.archiveSeedV2);
+    log('seedV3', d.settings && d.settings.archiveSeedV3);
+    (d.issues||[]).forEach(function(i){
+      log('ISSUE', i.id+' | '+i.name+' | focus='+i.focus+' | mons='+JSON.stringify(i.monitorIds));
+    });
+    (d.monitorItems||[]).forEach(function(m){
+      log('MON', m.id+' | '+m.name+' | issueId='+m.issueId+' | unit='+m.unit+' | ref='+m.refRange);
+    });
+    (d.events||[]).forEach(function(ev){
+      log('EV', ev.id+' | '+ev.description+' | ids='+JSON.stringify(ev.issueIds)+' | v='+ev.value+' '+ev.valueUnit);
+    });
+    /* 模拟 renderIssueCard 里 latestEventFor 的过滤逻辑 */
+    function normLabName(s){ return String(s||'').replace(/[（(][^）)]*[）)]/g,'').replace(/[\s:：]/g,'').toUpperCase(); }
+    function sameLabName(desc,name){ var a=normLabName(desc),b=normLabName(name); if(!a||!b) return false; return a===b||a.indexOf(b)>=0||b.indexOf(a)>=0; }
+    function normUnit(u){ return String(u||'').replace(/\s/g,'').toLowerCase(); }
+    (d.issues||[]).filter(function(i){return i.focus}).forEach(function(issue){
+      var evs=(d.events||[]).filter(function(ev){return (ev.issueIds||[]).indexOf(issue.id)>=0;});
+      log('MATCH['+issue.name+']', '关联事件数='+evs.length);
+      (d.monitorItems||[]).filter(function(m){return (issue.monitorIds||[]).indexOf(m.id)>=0;}).forEach(function(m){
+        var hit=evs.filter(function(ev){
+          if(ev.value===null||ev.value===undefined) return false;
+          if(m.name && !sameLabName(ev.description,m.name)) return false;
+          if(m.unit && ev.valueUnit && normUnit(ev.valueUnit)!==normUnit(m.unit)) return false;
+          return true;
+        });
+        log('  MON_MATCH', m.name+' -> 命中 '+hit.length+' 条'+(hit.length?('，最新值='+hit[hit.length-1].value):''));
+      });
+    });
+  }
+}catch(e){ out.push('FATAL: '+e.message); }
+document.getElementById('out').textContent = out.join('\n');
+</script>
+</body>
+</html>
