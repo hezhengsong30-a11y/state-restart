@@ -101,7 +101,7 @@ function deleteEvent(id){
 
 /* ========== 数据层：监测项 CRUD ========== */
 function blankMonitorItem(issueId){
-  return { id:null, issueId: issueId||null, name:'', kind:'num', unit:'', options:[], notes:'', createdAt: nowISO() };
+  return { id:null, issueId: issueId||null, name:'', kind:'num', unit:'', refRange:'', options:[], notes:'', createdAt: nowISO() };
 }
 function addMonitorItem(obj){
   var m = Object.assign(blankMonitorItem(), obj||{});
@@ -147,12 +147,23 @@ function collectMonitorPoints(monitorId, issueId){
   var mi = A.DB.monitorItems.find(function(x){ return x.id===monitorId; });
   var kind = mi ? mi.kind : 'num';
 
+  /* 糖化血红蛋白 → 只取「检查」事件中单位为 % 的记录，不与 mmol/L 血糖混图 */
+  if(mi && /糖化|hba1c/i.test(mi.name)){
+    A.DB.events.forEach(function(ev){
+      if(!A.hasNum(ev.value)) return;
+      if(!/糖化/i.test(ev.description||'')) return;
+      if(normUnit(ev.valueUnit)!=='%') return;
+      if(issueId && (ev.issueIds||[]).indexOf(issueId)<0) return;
+      points.push({ date: ev.date, value: A.num(ev.value), unit: ev.valueUnit, source: ev.source||'检查', measurementType:'', notes: ev.description||'' });
+    });
+  }
   /* 血糖 → 从 days[].glucose[] 读，并合并「检查」事件里的血糖值 */
-  if(mi && /血糖|glucose/i.test(mi.name)){
+  else if(mi && /血糖|glucose/i.test(mi.name)){
+    var wantUnit = normUnit(mi.unit || 'mmol/l');
     Object.keys(A.DB.days).sort().forEach(function(ds){
       var g = A.DB.days[ds].glucose;
       (g||[]).forEach(function(x){
-        if(A.hasNum(x.value)){
+        if(A.hasNum(x.value) && normUnit(x.unit||'mmol/L')===wantUnit){
           points.push({
             date: ds,
             value: A.num(x.value),
@@ -166,14 +177,14 @@ function collectMonitorPoints(monitorId, issueId){
     });
     A.DB.events.forEach(function(ev){
       if(!A.hasNum(ev.value)) return;
-      if(!/血糖|糖化/i.test(ev.description||'')) return;
-      if(normUnit(ev.valueUnit)!=='mmol/l' && normUnit(ev.valueUnit)!=='%') return;
+      if(!/血糖/.test(ev.description||'')) return;
+      if(normUnit(ev.valueUnit)!==wantUnit) return;
       if(issueId && (ev.issueIds||[]).indexOf(issueId)<0) return;
       points.push({ date: ev.date, value: A.num(ev.value), unit: ev.valueUnit, source: ev.source||'检查', measurementType: /空腹/.test(ev.description)?'空腹':(/餐后/.test(ev.description)?'餐后2小时':''), notes: ev.description||'' });
     });
   }
   /* 体重 → 从 days[].weight 读；基线仅在「有明确测量日期」时才进图，避免把未知日期当成周期首日 */
-  else if(mi && /体重|weight/i.test(mi.name)){
+  else if(mi && /体重|weight/i.test(mi.name) && !/指数|bmi/i.test(mi.name)){
     var bw = A.DB.baseline.weight || {};
     if(A.hasNum(bw.value) && bw.date){
       points.push({ date: bw.date, value: A.num(bw.value), unit: 'kg', source: bw.source||'基线', measurementType:'', notes: bw.note||'' });
@@ -509,25 +520,100 @@ function renderLatestReview(){
   return html;
 }
 
-/* ========== 其他健康信息列表 ========== */
+/* ========== 其他健康信息列表（默认折叠，展开看检测时间/问题/指标与参考范围） ========== */
+function refFlag(value, ref){
+  if(value==null || value==='' || !ref) return '';
+  var v = +value; if(isNaN(v)) return '';
+  var s = String(ref).replace(/\s/g,'');
+  var m;
+  if((m=s.match(/^(?:＜|<|≤)([\d.]+)$/))) return v>+m[1] ? '偏高' : '';
+  if((m=s.match(/^(?:＞|>|≥)([\d.]+)$/))) return v<+m[1] ? '偏低' : '';
+  if((m=s.match(/^([\d.]+)[-~～]([\d.]+)$/))){
+    if(v>+m[2]) return '偏高';
+    if(v<+m[1]) return '偏低';
+  }
+  return '';
+}
+function issueDetailHtml(issue){
+  var mons = A.DB.monitorItems.filter(function(m){ return (issue.monitorIds||[]).indexOf(m.id)>=0; });
+  var evs = A.DB.events.filter(function(ev){ return (ev.issueIds||[]).indexOf(issue.id)>=0; })
+    .sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+  var labs = [], finds = [];
+  evs.forEach(function(ev){
+    if(A.hasNum(ev.value)){
+      var mon=null;
+      for(var i=0;i<mons.length;i++){ if(sameLabName(ev.description, mons[i].name)){ mon=mons[i]; break; } }
+      var ref = ev.refRange || (mon?mon.refRange:'') || '';
+      labs.push({
+        name : mon ? mon.name : String(ev.description||'').replace(/[（(].*$/,''),
+        value: ev.value,
+        unit : ev.valueUnit || (mon?mon.unit:'') || '',
+        ref  : ref,
+        flag : refFlag(ev.value, ref)
+      });
+    } else if(ev.description){
+      finds.push(ev);
+    }
+  });
+  mons.forEach(function(m){
+    var has = labs.some(function(r){ return sameLabName(r.name, m.name); });
+    if(!has) labs.push({ name:m.name, value:null, unit:m.unit||'', ref:m.refRange||'', flag:'' });
+  });
+
+  var html='<div class="ao-body">';
+  html += '<div class="ao-line"><span class="ao-k">检测时间</span><span class="ao-v">'
+    + (issue.occurDate ? A.dateLabel(issue.occurDate) : '<span class="muted">未记录</span>')
+    + (issue.source ? ' · '+A.esc(issue.source) : '') + '</span></div>';
+  html += '<div class="ao-line"><span class="ao-k">问题</span><span class="ao-v">'
+    + (issue.currentStatus ? A.esc(issue.currentStatus) : '<span class="muted">未记录</span>') + '</span></div>';
+  if(issue.seekCare){
+    html += '<div class="ao-care">'+A.esc(issue.seekCare)+'</div>';
+  }
+  if(labs.length){
+    html += '<div class="ao-sub">指标数值与参考范围</div><div class="ao-labs">';
+    labs.forEach(function(r){
+      html += '<div class="ao-lab">'
+        + '<span class="ao-lab-n">'+A.esc(r.name)+'</span>'
+        + '<span class="ao-lab-v">'+(r.value==null?'<span class="muted">待记录</span>':A.esc(r.value)+' '+A.esc(r.unit))+'</span>'
+        + (r.flag?'<span class="ao-flag '+(r.flag==='偏高'?'up':'down')+'">'+r.flag+'</span>':'')
+        + (r.ref?'<span class="ao-lab-r">参考 '+A.esc(r.ref)+'</span>':'')
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  if(finds.length){
+    html += '<div class="ao-sub">检查结论</div>';
+    finds.forEach(function(ev){
+      html += '<div class="ao-find">'+(ev.date?'<span class="muted">'+A.dateLabel(ev.date)+'</span> · ':'')
+        + A.esc(ev.description)
+        + (ev.notes?'<div class="ao-find-note">'+A.esc(ev.notes)+'</div>':'')+'</div>';
+    });
+  }
+  html += '<div class="ao-item-meta">'
+    + '<button class="link-btn" data-action="set-focus">设为重点</button>'
+    + '<button class="link-btn" data-action="detail">详情</button>'
+    + '<button class="link-btn" data-action="edit">编辑</button>'
+    + '</div></div>';
+  return html;
+}
 function renderOtherIssues(){
   var nonFocus = A.DB.issues.filter(function(i){ return !i.focus && !i.archived; });
   if(nonFocus.length===0){
     return '';
   }
-  var html='<details class="fold" open><summary>其他健康信息 <span class="fold-sub">'+nonFocus.length+' 项</span></summary>';
+  var html='<details class="fold"><summary>其他健康信息 <span class="fold-sub">'+nonFocus.length+' 项 · 点击展开</span></summary>';
   html += '<div class="ao-list">';
   nonFocus.forEach(function(issue){
-    html += '<div class="ao-item" data-issue-id="'+issue.id+'">'
-      + '<div class="ao-item-title">'+A.esc(issue.name)+'</div>'
-      + (issue.keywords && issue.keywords.length
-        ? '<div class="ao-item-kws">'+issue.keywords.map(function(k){ return A.esc(k); }).join(' · ')+'</div>'
-        : '<div class="ao-item-kws muted">待补充</div>')
-      + '<div class="ao-item-meta">'
-      + '<button class="link-btn" data-action="set-focus">设为重点</button>'
-      + '<button class="link-btn" data-action="detail">详情</button>'
-      + '<button class="link-btn" data-action="edit">编辑</button>'
-      + '</div></div>';
+    var n = 0;
+    A.DB.events.forEach(function(ev){
+      if(A.hasNum(ev.value) && (ev.issueIds||[]).indexOf(issue.id)>=0) n++;
+    });
+    html += '<details class="ao-item" data-issue-id="'+issue.id+'">'
+      + '<summary><span class="ao-item-title">'+A.esc(issue.name)+'</span>'
+      + '<span class="ao-sum-meta">'+(issue.occurDate?A.dateLabel(issue.occurDate):'')
+      + (n?' · '+n+' 项指标':'')+'</span></summary>'
+      + issueDetailHtml(issue)
+      + '</details>';
   });
   html += '</div></details>';
   return html;

@@ -428,6 +428,39 @@ details.tips>summary::-webkit-details-marker{display:none}
 .ao-item-title{font-size:.9rem;font-weight:600}
 .ao-item-kws{font-size:.75rem;color:var(--text-3);margin-top:3px}
 .ao-item-meta{margin-top:5px;display:flex;gap:10px}
+/* v11：其他问题默认折叠，展开显示检测时间/数值/参考范围 */
+details.ao-item{padding:0}
+details.ao-item>summary{
+  display:flex;align-items:baseline;gap:8px;cursor:pointer;list-style:none;
+  padding:10px 12px;
+}
+details.ao-item>summary::-webkit-details-marker{display:none}
+details.ao-item>summary::after{
+  content:'▾';margin-left:8px;color:var(--text-3);font-size:.8rem;transition:transform .15s;
+}
+details.ao-item[open]>summary::after{transform:rotate(180deg)}
+details.ao-item[open]{background:var(--card)}
+.ao-sum-meta{font-size:.7rem;color:var(--text-3);margin-left:auto}
+.ao-item>summary .ao-item-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ao-body{padding:0 12px 10px;border-top:1px dashed var(--border);margin-top:0}
+.ao-line{display:flex;gap:8px;font-size:.78rem;margin-top:6px}
+.ao-k{color:var(--text-3);flex:0 0 4.2em}
+.ao-v{flex:1;min-width:0;line-height:1.5}
+.ao-care{
+  font-size:.73rem;line-height:1.5;color:#b91c1c;background:#fef2f2;
+  border:1px solid #fecaca;border-radius:6px;padding:4px 8px;margin-top:6px;
+}
+.ao-sub{font-size:.7rem;color:var(--text-3);margin:8px 0 4px}
+.ao-labs{display:flex;flex-direction:column;gap:4px}
+.ao-lab{display:flex;align-items:baseline;gap:6px;font-size:.78rem;flex-wrap:wrap}
+.ao-lab-n{color:var(--text-2);min-width:5.8em}
+.ao-lab-v{font-weight:600;font-variant-numeric:tabular-nums}
+.ao-flag{font-size:.66rem;padding:0 4px;border-radius:3px;line-height:1.5}
+.ao-flag.up{color:#b91c1c;background:#fef2f2}
+.ao-flag.down{color:#1d4ed8;background:#eff6ff}
+.ao-lab-r{color:var(--text-3);font-size:.7rem;margin-left:auto}
+.ao-find{font-size:.78rem;line-height:1.5;margin-bottom:4px}
+.ao-find-note{font-size:.7rem;color:var(--text-3)}
 
 /* 时间线 */
 .timeline{display:flex;flex-direction:column;gap:0}

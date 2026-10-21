@@ -1352,16 +1352,32 @@ function baseBlock(key,name,unit,ph,id){
  * - 外部 ID 与本地冲突时重新编号，并同步 issueIds / monitorIds 引用
  */
 function maxId(arr){ var m=0; (arr||[]).forEach(function(o){ if(o && +o.id>m) m=+o.id; }); return m; }
+/* 同一份化验单可能被重复导入，日期相差 1 天以内视为同一次检查 */
+function nearDate(a,b){
+  if(!a || !b) return false;
+  var da=new Date(a+'T00:00:00'), db=new Date(b+'T00:00:00');
+  if(isNaN(da)||isNaN(db)) return a===b;
+  return Math.abs(da-db) <= 86400000;
+}
 function mergeArchive(incoming){
   var stat = { issues:0, monitors:0, events:0, reviews:0 };
   var issueMap = {}, monMap = {};
 
   (incoming.issues||[]).forEach(function(src){
     if(!src || !src.name) return;
-    var dup = DB.issues.find(function(x){
-      return x.name===src.name && (x.occurDate||'')===(src.occurDate||'');
-    });
-    if(dup){ issueMap[src.id]=dup.id; return; }
+    /* 问题按名称识别（同一问题多次体检仍是同一条）；已有条目只补空字段，不覆盖手工修改 */
+    var dup = DB.issues.find(function(x){ return x.name===src.name; });
+    if(dup){
+      issueMap[src.id]=dup.id;
+      ['occurDate','currentStatus','source','seekCare','cycleGoal','nextReviewDate'].forEach(function(k){
+        if(!dup[k] && src[k]) dup[k]=src[k];
+      });
+      (src.keywords||[]).forEach(function(k){
+        dup.keywords = dup.keywords||[];
+        if(dup.keywords.indexOf(k)<0) dup.keywords.push(k);
+      });
+      return;
+    }
     var copy = JSON.parse(JSON.stringify(src));
     copy.id = maxId(DB.issues)+1;
     copy.monitorIds = [];
@@ -1381,7 +1397,11 @@ function mergeArchive(incoming){
     var dup = DB.monitorItems.find(function(x){
       return x.name===src.name && (x.issueId||null)===(iid||null);
     });
-    if(dup){ monMap[src.id]=dup.id; }
+    if(dup){
+      monMap[src.id]=dup.id;
+      if(!dup.refRange && src.refRange) dup.refRange=src.refRange;
+      if(!dup.unit && src.unit) dup.unit=src.unit;
+    }
     else{
       var copy = JSON.parse(JSON.stringify(src));
       copy.id = maxId(DB.monitorItems)+1;
@@ -1399,12 +1419,15 @@ function mergeArchive(incoming){
   (incoming.events||[]).forEach(function(src){
     if(!src) return;
     var dup = DB.events.find(function(x){
-      return x.date===src.date && x.type===src.type
+      return nearDate(x.date, src.date) && x.type===src.type
         && (x.description||'')===(src.description||'')
         && String(x.value==null?'':x.value)===String(src.value==null?'':src.value)
         && (x.valueUnit||'')===(src.valueUnit||'');
     });
-    if(dup) return;
+    if(dup){
+      if(!dup.refRange && src.refRange) dup.refRange=src.refRange;
+      return;
+    }
     var copy = JSON.parse(JSON.stringify(src));
     copy.id = maxId(DB.events)+1;
     copy.issueIds = (src.issueIds||[]).map(function(id){ return issueMap[id]; })
