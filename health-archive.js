@@ -4,6 +4,37 @@
 var A = window.__h30_api;
 if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
 
+/* ========== 首次打开：写入内置体检档案 ==========
+ * 仅在档案为空时写入一次，之后用户已有数据不再覆盖。
+ */
+(function seedArchiveOnce(){
+  var seed = window.__H30_ARCHIVE_SEED;
+  try{
+    if(!seed) return;
+    A.DB.settings = A.DB.settings || {};
+    if(A.DB.settings.archiveSeedV1) return;
+    var empty = !(A.DB.issues||[]).length && !(A.DB.events||[]).length && !(A.DB.monitorItems||[]).length;
+    if(empty){
+      A.DB.issues = JSON.parse(JSON.stringify(seed.issues));
+      A.DB.events = JSON.parse(JSON.stringify(seed.events));
+      A.DB.monitorItems = JSON.parse(JSON.stringify(seed.monitorItems));
+      var b = A.DB.baseline;
+      if(b){
+        if(b.weight && !b.weight.date && String(b.weight.value||'')===String(seed.baseline.weight.value)){
+          b.weight.date = seed.baseline.weight.date;
+          b.weight.source = seed.baseline.weight.source;
+          b.weight.note = seed.baseline.weight.note;
+        }
+        if(!b.constitution || (!b.constitution.value && !b.constitution.date)){
+          b.constitution = JSON.parse(JSON.stringify(seed.baseline.constitution));
+        }
+      }
+    }
+    A.DB.settings.archiveSeedV1 = 'v1';
+    A.save();
+  }catch(e){ console.warn('seed archive skipped', e); }
+})();
+
 /* ========== 工具 ========== */
 function getNextId(arr){
   var m=0; (arr||[]).forEach(function(o){ if(o && o.id>m) m=o.id; }); return m+1;
