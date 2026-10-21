@@ -1648,6 +1648,7 @@ window.__h30_api = {
   cycleStart: cycleStart, cycleEnd: cycleEnd, cycleTotal: cycleTotal, cycleLabel: cycleLabel, currentCycle: currentCycle,
   weekOfIdx: weekOfIdx, weekRange: weekRange, currentWeek: currentWeek,
   showModal: showModal, closeModal: closeModal, download: download,
+  mergeArchive: mergeArchive,
   /* 档案页状态钩子 */
   setArchiveRender: function(fn){ window.__h30_renderArchive = fn; }
 };

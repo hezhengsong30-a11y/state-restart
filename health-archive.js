@@ -4,33 +4,36 @@
 var A = window.__h30_api;
 if(!A){ console.warn('health-archive.js: __h30_api not ready'); return; }
 
-/* ========== 首次打开：写入内置体检档案 ==========
- * 仅在档案为空时写入一次，之后用户已有数据不再覆盖。
+/* ========== 首次打开：合并写入内置体检档案 ==========
+ * 按问题名称/事件内容去重，已有数据只补缺失项与参考范围，不覆盖手工修改。
+ * 每次升级种子版本（archiveSeedV2）都会执行一次补全。
  */
 (function seedArchiveOnce(){
   var seed = window.__H30_ARCHIVE_SEED;
   try{
-    if(!seed) return;
+    if(!seed){ console.warn('内置体检档案未加载'); return; }
     A.DB.settings = A.DB.settings || {};
-    if(A.DB.settings.archiveSeedV1) return;
-    var empty = !(A.DB.issues||[]).length && !(A.DB.events||[]).length && !(A.DB.monitorItems||[]).length;
-    if(empty){
-      A.DB.issues = JSON.parse(JSON.stringify(seed.issues));
-      A.DB.events = JSON.parse(JSON.stringify(seed.events));
-      A.DB.monitorItems = JSON.parse(JSON.stringify(seed.monitorItems));
-      var b = A.DB.baseline;
-      if(b){
-        if(b.weight && !b.weight.date && String(b.weight.value||'')===String(seed.baseline.weight.value)){
-          b.weight.date = seed.baseline.weight.date;
-          b.weight.source = seed.baseline.weight.source;
-          b.weight.note = seed.baseline.weight.note;
-        }
-        if(!b.constitution || (!b.constitution.value && !b.constitution.date)){
-          b.constitution = JSON.parse(JSON.stringify(seed.baseline.constitution));
-        }
+    if(A.DB.settings.archiveSeedV2) return;
+    if(typeof A.mergeArchive === 'function'){
+      A.mergeArchive({
+        archiveOnly: true,
+        issues: JSON.parse(JSON.stringify(seed.issues)),
+        monitorItems: JSON.parse(JSON.stringify(seed.monitorItems)),
+        events: JSON.parse(JSON.stringify(seed.events))
+      });
+    }
+    var b = A.DB.baseline;
+    if(b){
+      if(b.weight && !b.weight.date && String(b.weight.value||'')===String(seed.baseline.weight.value)){
+        b.weight.date = seed.baseline.weight.date;
+        b.weight.source = seed.baseline.weight.source;
+        b.weight.note = seed.baseline.weight.note;
+      }
+      if(!b.constitution || (!b.constitution.value && !b.constitution.date)){
+        b.constitution = JSON.parse(JSON.stringify(seed.baseline.constitution));
       }
     }
-    A.DB.settings.archiveSeedV1 = 'v1';
+    A.DB.settings.archiveSeedV2 = 'v2';
     A.save();
   }catch(e){ console.warn('seed archive skipped', e); }
 })();
