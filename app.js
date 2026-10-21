@@ -1653,6 +1653,27 @@ window.__h30_api = {
   setArchiveRender: function(fn){ window.__h30_renderArchive = fn; }
 };
 
+/* 自动版本检测：解决微信内置浏览器强缓存旧 JS 的问题。
+ * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
+ * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
+ */
+var APP_VERSION = 17;
+(function versionCheck(){
+  if(/[?&]selftest=1/.test(location.search)) return;
+  if(!window.fetch) return;
+  try{
+    fetch('index.html?nocache='+Date.now(), { cache:'no-store' })
+      .then(function(r){ return r.text(); })
+      .then(function(t){
+        var m = t.match(/ver-tag">v(\d+)</);
+        if(m && +m[1] > APP_VERSION){
+          location.replace(location.pathname + '?t=' + Date.now());
+        }
+      })
+      .catch(function(){});
+  }catch(e){}
+})();
+
 /* 仅用于本地自测：带 ?selftest=1 时暴露额外函数 */
 if(/[?&]selftest=1/.test(location.search)){
   window.__h30 = {
