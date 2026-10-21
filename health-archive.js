@@ -75,6 +75,42 @@ var EVENT_TYPES = ['检查','就诊/医嘱','用药变化','症状变化','计�
 var RATINGS = ['改善/减轻','基本稳定','加重','本期未出现症状','已解决','信息不足，暂不能判断'];
 var ACTION_KEYS = ['dietOk','noAlcoholSweet','walkMin','sleepH','waterMl','sedentaryBreaks','relax','sleepRest'];
 var ACTION_MAP = { dietOk:'饮食', noAlcoholSweet:'无酒无甜饮', walkMin:'步行', sleepH:'睡眠', waterMl:'饮水', sedentaryBreaks:'久坐中断', relax:'放松', sleepRest:'尽量按时休息' };
+var ACTION_ICON = { dietOk:'🥗', noAlcoholSweet:'🚫🥂', walkMin:'🚶', sleepH:'💤', waterMl:'💧', sedentaryBreaks:'🧍', relax:'🧘', sleepRest:'🌙' };
+
+/* 问题名 → 图标（内联 SVG）+ 配色 */
+var ISSUE_ICON_MAP = [
+  { key: /体重|BMI|肥胖/i, color:'#f97316', bg:'#fff7ed', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M8 6V3M16 6V3"/><path d="M7 14h10"/><circle cx="7" cy="14" r="1" fill="currentColor"/><circle cx="17" cy="14" r="1" fill="currentColor"/></svg>' },
+  { key: /血糖|糖化|糖尿病/i, color:'#e11d48', bg:'#fff1f2', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 7.5 6 12a6 6 0 0 1-12 0c0-4.5 6-12 6-12z"/><path d="M9 13a3 3 0 0 0 3 3"/></svg>' },
+  { key: /血脂|胆固醇|甘油三酯|低密度/i, color:'#f59e0b', bg:'#fffbeb', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>' },
+  { key: /肝|ALT|AST|GGT|脂肪/i, color:'#8b5cf6', bg:'#f5f3ff', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-3 0-5 2-5 5 0 1 0 2 1 3-2 1-3 3-3 5 0 3 2 5 5 5 1 0 1 0 2-1 1 1 1 1 2 1 3 0 5-2 5-5 0-2-1-4-3-5 1-1 1-2 1-3 0-3-2-5-5-5z"/></svg>' },
+  { key: /肾|结晶|泌尿/i, color:'#0ea5e9', bg:'#f0f9ff', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 5 5 5 9c0 5 3 9 7 13 4-4 7-8 7-13 0-4-3-7-7-7z"/><path d="M9 10h6"/></svg>' },
+  { key: /胆|息肉|结晶/i, color:'#10b981', bg:'#ecfdf5', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8l3 4v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8l3-4z"/><circle cx="12" cy="14" r="1.5" fill="currentColor"/></svg>' },
+  { key: /骨质|颈椎|增生|关节/i, color:'#ec4899', bg:'#fdf2f8', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8h14M5 16h14"/><circle cx="12" cy="5" r="2"/><circle cx="12" cy="19" r="2"/></svg>' },
+  { key: /口腔|龋齿|牙/i, color:'#14b8a6', bg:'#f0fdfa', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v4c0 4-2 6-3 8-1 2-1 4-3 4s-2-2-3-4c-1-2-3-4-3-8V4z"/></svg>' },
+  { key: /检查|指标|实验室/i, color:'#0ea5e9', bg:'#f0f9ff', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4h4v14H5V7h4V3z"/><path d="M9 12h6M9 16h4"/></svg>' },
+  { key: /症状|其他/i, color:'#64748b', bg:'#f8fafc', svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>' }
+];
+function issueIcon(name){
+  for(var i=0;i<ISSUE_ICON_MAP.length;i++){
+    if(ISSUE_ICON_MAP[i].key.test(name)) return ISSUE_ICON_MAP[i];
+  }
+  return ISSUE_ICON_MAP[ISSUE_ICON_MAP.length-1];
+}
+
+/* 解析参考范围 → 返回 {flag:'hi'|'lo'|'ok'|'', hint:'偏高'|'偏低'|'正常'} */
+function evalRef(value, refRange){
+  if(value==null || value==undefined || !refRange) return {flag:'', hint:''};
+  var s = String(refRange).replace(/\s/g,'');
+  var n = parseFloat(value);
+  if(isNaN(n)) return {flag:'', hint:''};
+  var hiMatch = s.match(/^[＜<<]([\d\.]+)$/);
+  if(hiMatch){ var b=parseFloat(hiMatch[1]); if(n>b) return {flag:'hi', hint:'偏高'}; return {flag:'ok', hint:'正常'}; }
+  var loMatch = s.match(/^[＞>>≥]([\d\.]+)$/);
+  if(loMatch){ var b2=parseFloat(loMatch[1]); if(n<b2) return {flag:'lo', hint:'偏低'}; return {flag:'ok', hint:'正常'}; }
+  var mid = s.match(/^([\d\.]+)[\-~至到]([\d\.]+)$/);
+  if(mid){ var lo=parseFloat(mid[1]), hi2=parseFloat(mid[2]); if(n<lo) return {flag:'lo', hint:'偏低'}; if(n>hi2) return {flag:'hi', hint:'偏高'}; return {flag:'ok', hint:'正常'}; }
+  return {flag:'', hint:''};
+}
 
 /* ========== 数据层：问题 CRUD ========== */
 function blankIssue(){
@@ -445,8 +481,113 @@ function renderFocusCards(){
 function renderIssueCard(issue){
   var monitors = A.DB.monitorItems.filter(function(m){ return Array.isArray(issue.monitorIds) && issue.monitorIds.indexOf(m.id)>=0; });
   var events = A.DB.events.filter(function(ev){ return (ev.issueIds||[]).indexOf(issue.id)>=0; }).sort(function(a,b){ return a.date>b.date?-1:1; });
+  /* 从 events 取每个 monitor 的最新一条数值 */
+  function latestEventFor(mon){
+    for(var i=0;i<events.length;i++){
+      if(!events[i].value && events[i].value!==0) continue;
+      if(mon.name && !sameLabName(events[i].description, mon.name)) continue;
+      if(mon.unit && events[i].valueUnit && normUnit(events[i].valueUnit)!==normUnit(mon.unit)) continue;
+      return events[i];
+    }
+    return null;
+  }
+
+  if(issue.focus){
+    /* ===== 重点卡片：华为运动健康风格（图标+大数字+精简chip） ===== */
+    var icon = issueIcon(issue.name);
+    var html = '<div class="archive-issue-card focus-card" data-issue-id="'+issue.id+'" style="border-color:'+icon.color+'22">';
+    /* 顶行：图标 + 问题名 + 徽章 */
+    html += '<div class="aic-top">'
+      + '<div class="aic-ic" style="background:'+icon.bg+';color:'+icon.color+'">'+icon.svg+'</div>'
+      + '<div class="aic-top-main">'
+      + '<div class="aic-title">'+A.esc(issue.name)+'<span class="aic-badge">重点</span></div>';
+    if(issue.occurDate){
+      html += '<div class="aic-meta">'+A.dateLabel(issue.occurDate)+(issue.source?' · '+A.esc(issue.source):'')+'</div>';
+    }
+    html += '</div>'
+      + '<div class="aic-actions">'
+      + '<button class="ic-btn" data-action="add-record" title="添加记录">＋</button>'
+      + '<button class="ic-btn" data-action="detail" title="详情">ℹ</button>'
+      + '<button class="ic-btn" data-action="edit" title="编辑">✎</button>'
+      + '<button class="ic-btn" data-action="unfocus" title="移出重点">☆</button>'
+      + '</div></div>';
+    /* 就诊提醒缩为小badge */
+    if(issue.seekCare){
+      html += '<div class="aic-care-mini">🏥 '+(issue.seekCare.length>28?A.esc(issue.seekCare.slice(0,28)+'…'):A.esc(issue.seekCare))+'</div>';
+    }
+    /* 统计指标区：最新数值大字 + 参考范围 + 偏高/偏低badge */
+    var statCount = 0;
+    if(monitors.length){
+      html += '<div class="aic-stat-grid">';
+      monitors.forEach(function(m){
+        var ev = latestEventFor(m);
+        if(!ev) return;
+        statCount++;
+        var val = parseFloat(ev.value);
+        var ref = evalRef(val, m.refRange || ev.refRange || '');
+        var unit = A.esc(m.unit || ev.valueUnit || '');
+        var refText = (m.refRange || ev.refRange || '') ? ('参考 '+A.esc(m.refRange||ev.refRange)) : '';
+        var flagClass = ref.flag==='hi'?'flag-hi':(ref.flag==='lo'?'flag-lo':(ref.flag==='ok'?'flag-ok':''));
+        var flagHtml = ref.hint ? ('<span class="aic-stat-flag '+flagClass+'">'+ref.hint+'</span>') : '';
+        var refHtml = refText ? ('<span class="aic-stat-ref">'+refText+'</span>') : '';
+        var valStr = String(val);
+        if(valStr.indexOf('.')>=0) valStr = valStr.replace(/0+$/,'').replace(/\.$/,'');
+        html += '<div class="aic-stat">'
+          + '<div class="aic-stat-name">'+A.esc(m.name)+'</div>'
+          + '<div class="aic-stat-val">'+valStr+(unit?'<span class="aic-stat-unit">'+unit+'</span>':'')+flagHtml+'</div>'
+          + (refHtml?('<div class="aic-stat-sub">'+refHtml+'</div>'):'')
+          + '</div>';
+      });
+      html += '</div>';
+    }
+    if(statCount===0){
+      html += '<div class="aic-stat-empty">还没有数值记录 · 点 ＋ 添加</div>';
+    }
+    /* 关联行动 emoji chips */
+    if(issue.linkedActions && issue.linkedActions.length){
+      html += '<div class="aic-chips">';
+      issue.linkedActions.forEach(function(k){
+        html += '<span class="aic-chip">'+(ACTION_ICON[k]?'<span class="aic-chip-ic">'+ACTION_ICON[k]+'</span>':'')+A.esc(ACTION_MAP[k]||k)+'</span>';
+      });
+      html += '</div>';
+    }
+    /* 折叠详情：目标 + 评价 + 下次回顾 + 趋势图 */
+    var review = A.DB.reviews.slice().sort(function(a,b){ return (b.reviewDate||'').localeCompare(a.reviewDate||''); })
+      .find(function(r){ return (r.evaluations||[]).some(function(e){ return e.issueId===issue.id; }); });
+    var latestRating = review ? review.evaluations.find(function(e){ return e.issueId===issue.id; }).rating : null;
+    html += '<details class="aic-details"><summary>详情 / 趋势 / 归档</summary>';
+    if(issue.currentStatus){
+      html += '<div class="aic-d-line"><span class="aic-d-k">问题：</span>'+A.esc(issue.currentStatus)+'</div>';
+    }
+    if(issue.cycleGoal){
+      html += '<div class="aic-d-line"><span class="aic-d-k">目标：</span>'+A.esc(issue.cycleGoal)+'</div>';
+    }
+    if(monitors.length){
+      monitors.forEach(function(m){
+        var pts = collectMonitorPoints(m.id, issue.id);
+        html += '<div class="aic-d-line"><span class="aic-d-k">趋势：</span>'+A.esc(m.name)+'</div>';
+        if(pts.length>0){
+          html += '<canvas class="chart archive-chart" data-monitor="'+m.id+'" data-issue="'+issue.id+'" height="120"></canvas>';
+        } else {
+          html += '<div class="muted" style="font-size:.72rem">暂无记录</div>';
+        }
+      });
+    }
+    html += '<div class="aic-row">'
+      + '<div class="aic-cell"><div class="aic-sub">阶段评价</div><div class="aic-body">'+(latestRating?A.esc(latestRating):'<span class="muted">待回顾</span>')+'</div></div>'
+      + '<div class="aic-cell"><div class="aic-sub">下次回顾</div><div class="aic-body">'+(issue.nextReviewDate?A.dateLabel(issue.nextReviewDate):'<span class="muted">待设置</span>')+'</div></div>'
+      + '</div>';
+    html += '<div class="aic-more">'
+      + '<button class="btn small ghost" data-action="archive">归档</button>'
+      + '<button class="btn small danger" data-action="delete">删除</button>'
+      + '</div>';
+    html += '</details>';
+    html += '</div>';
+    return html;
+  }
+
+  /* ===== 非重点卡片：保留原有段落式（被"其他健康信息"包裹） ===== */
   var html='<div class="archive-issue-card" data-issue-id="'+issue.id+'">';
-  /* 就诊提醒（P0）：报告建议专科就诊的问题，卡片顶部醒目标注 */
   if(issue.seekCare){
     html += '<div class="aic-care">🏥 报告建议就诊：'+A.esc(issue.seekCare)+'（打卡不能替代就医）</div>';
   }
@@ -456,24 +597,20 @@ function renderIssueCard(issue){
     + '<button class="link-btn" data-action="add-record">添加记录</button>'
     + '<button class="link-btn" data-action="detail">详情</button>'
     + '<button class="link-btn" data-action="edit">编辑</button>'
-    + '<button class="link-btn" data-action="unfocus">移出重点</button>'
+    + '<button class="link-btn" data-action="unfocus">设为重点</button>'
     + '</div></div>';
-  /* 当前情况 */
   html += '<div class="aic-section"><div class="aic-sub">当前情况</div>'
     + '<div class="aic-body">'+(issue.currentStatus?A.esc(issue.currentStatus):'<span class="muted">待记录</span>')
     + (issue.occurDate?' <span class="aic-date">· '+A.dateLabel(issue.occurDate)+(issue.source?' · '+A.esc(issue.source):'')+'</span>':'')
     + '</div></div>';
-  /* 本轮目标 */
   html += '<div class="aic-section"><div class="aic-sub">本轮目标</div>'
     + '<div class="aic-body">'+(issue.cycleGoal?A.esc(issue.cycleGoal):'<span class="muted">待设置</span>')+'</div></div>';
-  /* 趋势图 */
   if(monitors.length>0){
     monitors.forEach(function(m){
       var pts = collectMonitorPoints(m.id, issue.id);
       html += '<div class="aic-section"><div class="aic-sub">趋势：'+A.esc(m.name)+'</div>';
       if(pts.length>0){
         html += '<canvas class="chart archive-chart" data-monitor="'+m.id+'" data-issue="'+issue.id+'" height="160"></canvas>';
-        var cs = A.cycleStart(), ce = A.cycleEnd();
         html += '<div class="chart-note">本期有记录 '+pts.length+' 天 / 共 '+A.cycleTotal()+' 天</div>';
       } else {
         html += '<div class="aic-body"><span class="muted">暂无记录</span></div>';
@@ -483,7 +620,6 @@ function renderIssueCard(issue){
   } else {
     html += '<div class="aic-section"><div class="aic-sub">趋势</div><div class="aic-body"><span class="muted">未关联监测项目</span></div></div>';
   }
-  /* 关联行动 */
   if(issue.linkedActions && issue.linkedActions.length){
     html += '<div class="aic-section"><div class="aic-sub">关联行动</div><div class="aic-body">';
     issue.linkedActions.forEach(function(k){
@@ -491,12 +627,11 @@ function renderIssueCard(issue){
     });
     html += '</div></div>';
   }
-  /* 阶段评价 / 下次回顾 */
-  var review = A.DB.reviews.slice().sort(function(a,b){ return (b.reviewDate||'').localeCompare(a.reviewDate||''); })
+  var review2 = A.DB.reviews.slice().sort(function(a,b){ return (b.reviewDate||'').localeCompare(a.reviewDate||''); })
     .find(function(r){ return (r.evaluations||[]).some(function(e){ return e.issueId===issue.id; }); });
-  var latestRating = review ? review.evaluations.find(function(e){ return e.issueId===issue.id; }).rating : null;
+  var latestRating2 = review2 ? review2.evaluations.find(function(e){ return e.issueId===issue.id; }).rating : null;
   html += '<div class="aic-row">'
-    + '<div class="aic-cell"><div class="aic-sub">阶段评价</div><div class="aic-body">'+(latestRating?A.esc(latestRating):'<span class="muted">待回顾</span>')+'</div></div>'
+    + '<div class="aic-cell"><div class="aic-sub">阶段评价</div><div class="aic-body">'+(latestRating2?A.esc(latestRating2):'<span class="muted">待回顾</span>')+'</div></div>'
     + '<div class="aic-cell"><div class="aic-sub">下次回顾</div><div class="aic-body">'+(issue.nextReviewDate?A.dateLabel(issue.nextReviewDate):'<span class="muted">待设置</span>')+'</div></div>'
     + '</div>';
   html += '<details class="fold"><summary>更多：归档 / 删除</summary>'

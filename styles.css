@@ -561,3 +561,89 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 
 /* 版本标记，用于确认线上加载的是最新代码 */
 .ver-tag{position:fixed;right:6px;bottom:5px;z-index:60;font-size:.6rem;color:#9ca3af;background:rgba(255,255,255,.75);border-radius:4px;padding:0 4px;pointer-events:none}
+
+/* ========== 重点问题卡片（华为运动健康风格） ========== */
+.archive-issue-card.focus-card{
+  border-radius:16px;border-width:1.5px;padding:14px;margin-bottom:14px;
+  background:linear-gradient(180deg,var(--card) 0%,#ffffff 100%);
+  box-shadow:0 4px 14px rgba(15,23,42,.06);
+}
+.focus-card .aic-top{display:flex;align-items:center;gap:10px}
+.focus-card .aic-ic{
+  width:46px;height:46px;border-radius:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.focus-card .aic-ic svg{width:26px;height:26px;display:block}
+.focus-card .aic-top-main{flex:1;min-width:0}
+.focus-card .aic-title{font-size:.98rem;font-weight:700;color:#0f172a}
+.focus-card .aic-meta{font-size:.7rem;color:#94a3b8;margin-top:2px}
+.focus-card .aic-actions{display:flex;gap:3px;flex-shrink:0}
+.focus-card .ic-btn{
+  width:28px;height:28px;border:none;background:#f8fafc;border-radius:8px;
+  font-size:.8rem;color:#64748b;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.focus-card .ic-btn:active{background:#e2e8f0;transform:scale(.95)}
+.focus-card .aic-badge{
+  background:linear-gradient(135deg,#f97316,#fb923c);color:#fff;font-size:.66rem;
+  padding:1px 7px;border-radius:999px;font-weight:600;margin-left:6px;vertical-align:middle;
+}
+
+/* 就诊提醒缩为 mini badge */
+.focus-card .aic-care-mini{
+  font-size:.7rem;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;
+  border-radius:6px;padding:4px 8px;margin-top:10px;line-height:1.45;
+}
+
+/* 统计指标网格 */
+.focus-card .aic-stat-grid{
+  margin-top:12px;display:grid;gap:8px;
+  grid-template-columns:repeat(auto-fit,minmax(132px,1fr));
+}
+.focus-card .aic-stat{
+  background:#f8fafc;border:1px solid #f1f5f9;border-radius:12px;padding:10px 12px;
+}
+.focus-card .aic-stat-name{font-size:.7rem;color:#94a3b8;margin-bottom:2px;font-weight:500}
+.focus-card .aic-stat-val{
+  font-size:1.35rem;font-weight:700;color:#0f172a;line-height:1.2;
+  display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;
+}
+.focus-card .aic-stat-unit{font-size:.72rem;font-weight:500;color:#64748b}
+.focus-card .aic-stat-ref{font-size:.68rem;color:#94a3b8;margin-top:2px;display:block}
+.focus-card .aic-stat-empty{
+  font-size:.78rem;color:#94a3b8;background:#f8fafc;border-radius:10px;padding:10px;
+  margin-top:10px;text-align:center;
+}
+/* 偏高/偏低/正常 badge */
+.focus-card .aic-stat-flag{
+  font-size:.62rem;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:auto;
+}
+.focus-card .aic-stat-flag.flag-hi{background:#fef2f2;color:#b91c1c}
+.focus-card .aic-stat-flag.flag-lo{background:#eff6ff;color:#1d4ed8}
+.focus-card .aic-stat-flag.flag-ok{background:#ecfdf5;color:#047857}
+
+/* 关联行动 chips */
+.focus-card .aic-chips{
+  margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;
+}
+.focus-card .aic-chip{
+  font-size:.72rem;color:#475569;background:#f1f5f9;
+  padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;
+}
+.focus-card .aic-chip-ic{font-size:.82rem;line-height:1}
+
+/* 折叠详情 */
+.focus-card .aic-details{
+  margin-top:10px;border-top:1px dashed #e2e8f0;padding-top:6px;
+}
+.focus-card .aic-details summary{
+  font-size:.75rem;color:#64748b;cursor:pointer;
+  padding:4px 0;user-select:none;
+}
+.focus-card .aic-details summary::before{content:'▾';display:inline-block;margin-right:4px;transition:transform .15s}
+.focus-card .aic-details[open] summary::before{transform:rotate(180deg)}
+.focus-card .aic-d-line{font-size:.82rem;color:#475569;margin-top:6px;line-height:1.5}
+.focus-card .aic-d-k{color:#94a3b8;font-size:.72rem;margin-right:4px}
+
+@media (max-width:400px){
+  .focus-card .aic-stat-grid{grid-template-columns:1fr}
+}
