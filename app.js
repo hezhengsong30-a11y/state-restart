@@ -1130,7 +1130,8 @@ function renderTrend(){
   if($('#ch-weight',el)) drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg',
     (bw!=null?[{ y:bw*0.95, color:'#d97706', label:'减重5%目标' }]:[]));
   if($('#ch-glucose',el)){
-    var series=[{points:gSeries['空腹']||[], color:G_COLORS['空腹']}];
+    var fastingPoints=(gSeries['空腹']||[]).slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
+    var series=[{points:fastingPoints, color:G_COLORS['空腹']}];
     drawLine($('#ch-glucose',el),series,'mmol/L');
   }
   bindWeeks(el);
@@ -1280,6 +1281,8 @@ function drawLine(canvas, series, unit, hLines){
   });
   series.forEach(function(s){
     if(!s.points.length) return;
+    /* 兜底：按日期排序，避免 events 合并乱序导致折线跳跃 */
+    s.points = s.points.slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
     ctx.strokeStyle=s.color; ctx.lineWidth=2; ctx.beginPath();
     s.points.forEach(function(p,i){
       var xi=X(xs.indexOf(p.x)), yi=Y(p.y);
@@ -1786,7 +1789,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 24;
+var APP_VERSION = 25;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
