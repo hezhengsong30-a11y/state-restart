@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>血糖诊断</title>
+<style>body{font-family:-apple-system,sans-serif;padding:16px;background:#f8f8f8}pre{background:#fff;padding:12px;border-radius:8px;font-size:12px;white-space:pre-wrap;word-break:break-all;border:1px solid #e5e5e5}.btn{padding:8px 14px;background:#2f7d5b;color:#fff;border:none;border-radius:6px;cursor:pointer;margin:0 8px 8px 0}</style>
+</head><body>
+<button class="btn" onclick="run()">运行诊断</button>
+<button class="btn" onclick="localStorage.clear();document.getElementById('o').textContent='已清空'">清空 localStorage</button>
+<pre id="o">点"运行诊断"查看血糖数据</pre>
+<script>
+function run(){
+  var o=document.getElementById('o');
+  var out='';
+  out += '=== localStorage keys ===\n';
+  out += Object.keys(localStorage).join(', ') + '\n\n';
+  var k=Object.keys(localStorage).find(function(x){return x.indexOf('health')>=0||x.indexOf('30')>=0||x.indexOf('restart')>=0});
+  out += '检测到的可能数据 key: ' + (k||'(没找到)') + '\n\n';
+  if(!k){ o.textContent=out; return; }
+  var DB; try { DB = JSON.parse(localStorage.getItem(k)); } catch(e){ out += '解析失败: '+e.message; o.textContent=out; return; }
+  
+  out += '=== DB 结构 ===\n';
+  out += JSON.stringify(Object.keys(DB)) + '\n';
+  out += 'days 数量: ' + Object.keys(DB.days||{}).length + '\n\n';
+  
+  out += '=== 所有日期的 glucose 数组 ===\n';
+  var dates=Object.keys(DB.days||{}).sort();
+  dates.forEach(function(ds){
+    var d=DB.days[ds];
+    var g=d.glucose;
+    if(!g||!Array.isArray(g)||g.length===0){ out += ds + ': 无 glucose 数组\n'; return; }
+    out += ds + ' (' + (d.submitTime?'已打卡':'草稿/未提交') + '):\n';
+    g.forEach(function(x,i){ out += '  ['+i+'] ' + JSON.stringify(x) + '\n'; });
+  });
+  
+  out += '\n=== DB.events 里的血糖事件 ===\n';
+  (DB.events||[]).forEach(function(ev){
+    if(/血糖|糖化|glucose/i.test(ev.description||'')){
+      out += JSON.stringify(ev) + '\n';
+    }
+  });
+  
+  out += '\n=== 渲染层模拟 ===\n';
+  var hist=[];
+  dates.forEach(function(ds){
+    (DB.days[ds].glucose||[]).forEach(function(g){
+      if(g.timing==='空腹'){ var v=parseFloat(g.value); if(!isNaN(v)) hist.push({date:ds,value:v}); }
+    });
+  });
+  out += 'histFasting 收集结果 ('+hist.length+' 条):\n';
+  hist.forEach(function(p){ out += '  '+p.date+' '+p.value+'\n'; });
+  
+  o.textContent=out;
+}
+</script></body></html>
