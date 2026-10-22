@@ -934,6 +934,27 @@ function renderTrend(){
       gSeries[tm].push({x:ds,y:v,method:g.method||''});
     });
   });
+  /* 血糖：合并事件来源（体检/化验复查，走 events 而非打卡页） */
+  DB.events.forEach(function(ev){
+    if(!hasNum(ev.value)) return;
+    var desc = ev.description||'';
+    var u = String(ev.valueUnit||'').replace(/\s/g,'').toLowerCase();
+    /* 糖化血红蛋白单独识别：单位 %、描述含"糖化" */
+    if(/糖化/i.test(desc) && u==='%'){
+      var v2=num(ev.value); if(v2==null) return;
+      gSeries['糖化血红蛋白'].push({x:ev.date,y:v2,method:(ev.source==='体检报告'?'体检':'化验')});
+      return;
+    }
+    /* mmol/L 血糖事件：合并进趋势 */
+    if(!/血糖/.test(desc)) return;
+    if(u!=='mmol/l') return;
+    var v=num(ev.value); if(v==null) return;
+    var tm;
+    if(/空腹/.test(desc)) tm='空腹';
+    else if(/餐后2小时|餐后2h|餐后两小时/.test(desc)) tm='餐后2小时';
+    else tm='随机';
+    gSeries[tm].push({x:ev.date,y:v,method:(ev.source==='体检报告'?'体检':'化验')});
+  });
 
   var lastW = weights.length ? weights[weights.length-1].y : null;
   var bw = num(DB.baseline.weight.value);
@@ -1664,7 +1685,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 20;
+var APP_VERSION = 21;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
