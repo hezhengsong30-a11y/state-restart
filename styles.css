@@ -336,10 +336,17 @@ details.tips>summary::-webkit-details-marker{display:none}
 .chip-time{font-size:.68rem;color:var(--text-3)}
 
 /* 趋势周块 */
-.week-block{border-top:1px solid var(--border);padding-top:12px;margin-top:12px}
+.week-block{border-top:1px solid var(--border);padding-top:4px;margin-top:8px}
 .week-block:first-child{border-top:none;margin-top:0;padding-top:0}
-.week-head{font-size:.85rem;margin-bottom:8px}
-.week-head span{color:var(--text-3);font-weight:400;font-size:.75rem;margin-left:4px}
+.week-block>summary{list-style:none;cursor:pointer;padding:6px 2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:.85rem;user-select:none}
+.week-block>summary::-webkit-details-marker{display:none}
+.week-block>summary::after{content:'▸';color:var(--text-3);font-size:.72rem;margin-left:auto;transition:transform .15s}
+.week-block[open]>summary::after{transform:rotate(90deg)}
+.week-block[open]>summary{margin-bottom:6px}
+.week-head{display:flex;align-items:center;gap:6px;flex:1}
+.week-head b{font-size:.85rem}
+.week-head span{color:var(--text-3);font-weight:400;font-size:.75rem}
+.week-sub{color:var(--text-2);font-size:.72rem;background:var(--bg);padding:1px 6px;border-radius:10px;margin-left:4px}
 .week-days{display:flex;gap:4px;margin-bottom:8px}
 .wday{
   flex:1;text-align:center;border-radius:6px;padding:6px 2px;font-size:.68rem;

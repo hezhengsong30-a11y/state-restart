@@ -1087,9 +1087,10 @@ function renderTrend(){
   html += '</div>';
 
   /* 每周执行情况 */
-  html += '<div class="card"><div class="card-title">每周执行情况 <span class="sub">第 1～5 周全覆盖（含第 5 周最后两天）</span></div>';
+  var curW = currentWeek();
+  html += '<div class="card"><div class="card-title">每周执行情况 <span class="sub">只展开当前第 '+curW+' 周，点击标题展开其他周</span></div>';
   for(var w=1;w<=5;w++){
-    html += weekBlock(w);
+    html += weekBlock(w, w===curW);
   }
   html += '<div class="chart-note">颜色：深绿=已打卡，浅绿=已有草稿，灰=未记录。</div></div>';
 
@@ -1122,7 +1123,7 @@ function statCell(v,k,sub,warn){
   return '<div class="stat-cell"><div class="v'+(warn?' warn':'')+'">'+v+'</div><div class="k">'+esc(k)+'</div>'
     + (sub?'<div class="k2">'+esc(sub)+'</div>':'')+'</div>';
 }
-function weekBlock(w){
+function weekBlock(w, open){
   var rg=weekRange(w);
   var days=[];
   for(var i=(w-1)*7;i<Math.min(w*7,TOTAL);i++){
@@ -1139,7 +1140,9 @@ function weekBlock(w){
     if(hasNum(x.rec.sleepH)){ sleepSum+=num(x.rec.sleepH); sleepN++; }
   });
 
-  var html='<div class="week-block"><div class="week-head"><b>第 '+w+' 周</b> <span>'+dateLabel(rg[0])+'–'+dateLabel(rg[1])+'</span></div>';
+  var summary = '<div class="week-head"><b>第 '+w+' 周</b> <span>'+dateLabel(rg[0])+'–'+dateLabel(rg[1])+'</span>'
+    + '<span class="week-sub">'+recorded.length+'/'+days.length+' 已记录 · '+submitted.length+' 已打卡</span></div>';
+  var html = '<details class="week-block"'+(open?' open':'')+'><summary>'+summary+'</summary>';
   html += '<div class="week-days">';
   days.forEach(function(x){
     var st = isSubmitted(x.rec)?'done':(dayHasContent(x.rec)?'draft':'empty');
@@ -1166,7 +1169,7 @@ function weekBlock(w){
   html += '<div class="field week-adjust"><label>下周调整（一句话）</label>'
     + '<input type="text" data-week-adjust="'+w+'" value="'+esc((DB.weeks[w]&&DB.weeks[w].adjust)||'')+'" placeholder="例如：把晚饭后的步行固定成 15 分钟">'
     + '</div>';
-  html += '</div>';
+  html += '</details>';
   return html;
 }
 function modeStatCol(title,list,keys){
@@ -1766,7 +1769,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 27;
+var APP_VERSION = 28;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
