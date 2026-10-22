@@ -1076,36 +1076,15 @@ function renderTrend(){
   html += '<div class="chart-note">基线 '+esc(DB.baseline.weight.value||'—')+' kg · '+esc(baseMeta(DB.baseline.weight))+'（基线不计入趋势样本）</div></div>';
 
   /* 血糖 */
-  var gTotal=0; G_TIMINGS.forEach(function(x){ gTotal+=gSeries[x].length; });
-  html += '<div class="card"><div class="card-title">血糖趋势 <span class="sub">按测量时机分类，不混连</span></div>';
+  html += '<div class="card"><div class="card-title">空腹血糖趋势</div>';
   if((gSeries['空腹']||[]).length<1){ html += '<div class="empty">记录积累中：添加空腹血糖记录后显示趋势（家用血糖仪每天早上测的就是空腹血糖）</div>'; }
   else {
-    /* 趋势图只展示空腹血糖（家用血糖仪每天早上测的）；糖化血红蛋白单独列不混图 */
-    var fasting = gSeries['空腹']||[];
-    var hba1c   = gSeries['糖化血红蛋白']||[];
-    if(fasting.length>0){
-      html += '<canvas class="chart" id="ch-glucose"></canvas>';
-      html += '<div class="legend"><span><i style="background:'+G_COLORS['空腹']+'"></i>空腹（'+fasting.length+'）</span></div>';
-      html += '<div class="g-list">';
-      fasting.forEach(function(p){
-        html += '<div class="glucose-item"><span class="val">'+p.y+'</span><span class="tag">mmol/L</span>'
-          + '<span class="tag">空腹</span><span class="tag">'+dateLabel(p.x)+'</span>'
-          + (p.method?'<span class="tag">'+esc(p.method)+'</span>':'<span class="tag warn">测量方式未记录</span>')+'</div>';
-      });
-      html += '</div>';
-    }
-    if(hba1c.length>0){
-      html += '<div class="chart-note" style="margin-top:10px"><b>糖化血红蛋白（HbA1c）</b>：反映过去 2-3 个月平均血糖，家用血糖仪测不了，每 2-3 个月查一次。</div>';
-      html += '<div class="g-list">';
-      hba1c.forEach(function(p){
-        html += '<div class="glucose-item"><span class="val">'+p.y+'</span><span class="tag">%</span>'
-          + '<span class="tag">糖化血红蛋白</span><span class="tag">'+dateLabel(p.x)+'</span>'
-          + '<span class="tag">'+esc(p.method)+'</span></div>';
-      });
-      html += '</div>';
-    }
-    html += '<div class="chart-note">仅按数值呈现，不判断改善或恶化。空腹一般参考目标（2型糖尿病控制目标，仅供参考，具体遵医嘱）：4.4～7.0 mmol/L；糖化血红蛋白 &lt;7.0%。</div>';
-    html += '<div class="chart-note">一般参考目标（2型糖尿病控制目标，仅供参考，具体遵医嘱）：空腹 4.4～7.0；非空腹 &lt;10.0；糖化血红蛋白 &lt;7.0%。</div>';
+    var fasting=(gSeries['空腹']||[]).slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
+    html += '<canvas class="chart" id="ch-glucose"></canvas>';
+    html += '<div class="legend"><span><i style="background:'+G_COLORS['空腹']+'"></i>空腹血糖（'+fasting.length+' 次）</span></div>';
+    html += '<div class="chart-note">家用血糖仪每天早上测的就是空腹血糖。参考目标（2型糖尿病控制目标，仅供参考，具体遵医嘱）：4.4～7.0 mmol/L。糖化血红蛋白、体检复查等详细数据请在健康档案查看。</div>';
+    var series=[{points:fasting, color:G_COLORS['空腹']}];
+    drawLine($('#ch-glucose',el),series,'mmol/L');
   }
   html += '</div>';
 
@@ -1789,7 +1768,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 25;
+var APP_VERSION = 26;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
