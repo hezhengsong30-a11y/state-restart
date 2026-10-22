@@ -3,6 +3,27 @@
 'use strict';
 
 /* ========== 常量 ========== */
+/* 三个月目标（12 周 · 91 天 · 2026-10-20 → 2027-01-18） */
+var QUARTER = {
+  title: '三个月 · 体重从 89.5 → 80 kg（BMI 30.6 → 27.3）',
+  start:'2026-10-20', end:'2027-01-18',
+  baselineWeight:89.5, targetWeight:80,
+  baselineBMI:30.6,   targetBMI:27.3,
+  stages:[
+    { weeks:'第 1–4 周', focus:'稳定习惯',
+      desc:'完全戒烟戒酒；步行 8000–10000 步/天（约 30 分钟以上）；三餐规律；晨起称重用 7 天移动平均观察趋势。' },
+    { weeks:'第 5–8 周', focus:'根据趋势调整',
+      desc:'若体重连续两三周没变化，检查饮食份量/零食/周末饮食。身体适应后每周加 2–3 次轻度力量训练。' },
+    { weeks:'第 9–12 周', focus:'巩固',
+      desc:'逐步接近 80kg，不挨饿赶日期。同时记录腰围、精力、睡眠，看整体改善而非单一数字。' }
+  ],
+  medical:[
+    { when:'30 天内', title:'消化内科 / 肝病门诊', detail:'做 FIB-4 风险评估（结合血小板等），必要时肝脏弹性检测；肝酶异常已 11 年，不等体重降下来再看。' },
+    { when:'30 天内', title:'内分泌复核血糖', detail:'空腹 9.05 + 糖化 6.8% 已达糖尿病诊断阈值，尽快评估是否需要治疗。' },
+    { when:'近期',    title:'心血管 / 降脂评估', detail:'LDL-C 4.69 明显偏高，评估心血管风险和降脂方案。' }
+  ]
+};
+
 var START = '2026-10-20';         // 兜底值（DB.cycles 未就绪时用）
 var END   = '2026-11-18';
 var TOTAL = 30;
@@ -29,34 +50,34 @@ function cycleLabel(){
 }
 
 var PLAN = [
-  {focus:'开始打卡，记录血糖 7.0，选定起床和睡觉时间', walk:'饭后10分钟'},
-  {focus:'晨起如厕后称体重、量腰围，记录基线', walk:'饭后10分钟', weigh:true},
-  {focus:'准备两套方便执行的早餐', walk:'饭后10～15分钟'},
-  {focus:'午餐练习餐盘比例：半盘蔬菜、四分之一蛋白质、四分之一主食', walk:'两次各10分钟'},
-  {focus:'把水杯放在手边，观察饮水是否集中在晚上', walk:'两次各10分钟'},
-  {focus:'练习一顿外卖：少油、少酱、无甜饮', walk:'两次各10分钟'},
-  {focus:'第一周复盘：保留有效做法，简化最难的一项', walk:'轻松走15～20分钟', review:true},
-  {focus:'同条件称重；查看一周睡眠和血糖记录', walk:'累计20分钟', weigh:true},
+  {focus:'第 1 天：开始 30 天 + 3 个月计划，选定起床睡觉时间，称重量腰围记录基线', walk:'饭后10分钟', weigh:true},
+  {focus:'戒烟第 2 天：烟瘾发作通常 3–5 分钟就减弱，提前准备替代动作', walk:'饭后10分钟'},
+  {focus:'早餐加蛋白质，避免只有碳水；外卖优先清炒少油无甜饮', walk:'饭后10～15分钟'},
+  {focus:'午餐餐盘比例：半盘蔬菜、四分之一鱼肉蛋豆、四分之一主食', walk:'两次各10分钟'},
+  {focus:'观察饮水是否集中在晚上，提前放一杯在手边', walk:'两次各10分钟'},
+  {focus:'练习一顿健康外卖：少油少酱无甜饮；戒烟一周了', walk:'两次各10分钟'},
+  {focus:'第 1 周复盘：戒烟坚持、饮食餐盘比例、最难的一项？门诊约了吗？', walk:'轻松走15～20分钟', review:true, medicCheck:true},
+  {focus:'同条件称重；查看一周睡眠和血糖记录；没约门诊的本周内约', walk:'累计20分钟', weigh:true},
   {focus:'上午、下午都安排久坐中断（每坐1小时起身3分钟）', walk:'累计20分钟'},
-  {focus:'晚饭后不再边工作边吃零食', walk:'累计20～25分钟'},
+  {focus:'晚饭后不再边工作边吃零食；戒烟第二周', walk:'累计20～25分钟'},
   {focus:'工作结束前写好明天最重要的一件事', walk:'累计20～25分钟'},
-  {focus:'周末也尽量保持起床时间', walk:'累计20～25分钟'},
+  {focus:'周末也尽量保持起床时间；戒烟最容易复吸的场景通常在聚会', walk:'累计20～25分钟'},
   {focus:'为下周准备蔬菜、蛋白质和早餐食材', walk:'累计20～25分钟'},
-  {focus:'第二周复盘：关注精神、饥饿感和执行难度', walk:'轻松走20分钟', review:true},
-  {focus:'同条件称重、量腰围；不因单次波动加码', walk:'耐受时累计30分钟', weigh:true},
-  {focus:'检查早餐是否只有主食，补上蛋白质', walk:'累计25～30分钟'},
-  {focus:'留意会议、加班时是否忘记吃饭和喝水', walk:'累计25～30分钟'},
-  {focus:'聚餐仍正常进食，避免靠饿一顿“补偿”', walk:'累计25～30分钟'},
+  {focus:'第 2 周复盘：精神、饥饿感和执行难度；已两周无酒无甜饮无吸烟', walk:'轻松走20分钟', review:true, medicCheck:true},
+  {focus:'同条件称重、量腰围；不因单日波动加码，看 7 天平均', walk:'耐受时累计30分钟', weigh:true},
+  {focus:'检查早餐是否只有主食，补上鸡蛋/牛奶/蛋白', walk:'累计25～30分钟'},
+  {focus:'留意会议、加班时是否忘记吃饭喝水；忙时先保证不抽烟不喝酒', walk:'累计25～30分钟'},
+  {focus:'聚餐仍正常进食，不跳餐补偿；不喝酒，找一杯替代饮品', walk:'累计25～30分钟'},
   {focus:'选择一次喜欢的户外散步，重在放松', walk:'累计25～30分钟'},
-  {focus:'提前结束工作，给睡前留出完整30分钟', walk:'累计25～30分钟'},
-  {focus:'第三周复盘：选出最容易长期保留的三个习惯', walk:'轻松走20分钟', review:true},
+  {focus:'提前结束工作，给睡前留出完整 30 分钟', walk:'累计25～30分钟'},
+  {focus:'第 3 周复盘：选出最容易长期保留的三个习惯', walk:'轻松走20分钟', review:true, medicCheck:true},
   {focus:'同条件称重；看整体趋势，不比较每天数字', walk:'累计约30分钟', weigh:true},
   {focus:'把最常点的外卖固定成两三种合适组合', walk:'累计约30分钟'},
-  {focus:'练习忙碌日的简化版：正常吃饭、无酒无甜饮、走10分钟', walk:'允许减至10～15分钟'},
-  {focus:'回顾压力大的时候是否容易晚睡、吃零食', walk:'累计约30分钟'},
+  {focus:'练习忙碌日简化版：正常吃饭、不抽烟、不喝酒、走10分钟', walk:'允许减至10～15分钟'},
+  {focus:'回顾压力大的时候是否容易晚睡、吃零食、想抽烟', walk:'累计约30分钟'},
   {focus:'给自己安排一项喜欢、轻松的活动', walk:'舒适步行'},
   {focus:'准备下一周食材，保持原有节奏', walk:'累计约30分钟'},
-  {focus:'第四周复盘，整理医生要求的监测记录', walk:'轻松走20分钟', review:true},
+  {focus:'第 4 周复盘，整理医嘱复查时间和监测记录', walk:'轻松走20分钟', review:true, medicCheck:true},
   {focus:'同条件称重，选定下个月继续保留的习惯', walk:'累计约30分钟', weigh:true},
   {focus:'量腰围，完成月度复盘，核对医嘱复查时间', walk:'舒适步行，不额外加量', weigh:true}
 ];
@@ -65,6 +86,7 @@ var PLAN = [
 var ITEMS = [
   {key:'dietOk',          name:'饮食',      type:'tri'},
   {key:'noAlcoholSweet',  name:'无酒无甜饮', type:'tri'},
+  {key:'noSmoke',         name:'不吸烟',    type:'tri'},
   {key:'walkMin',         name:'步行',      type:'num', unit:'分钟'},
   {key:'sleepH',          name:'睡眠',      type:'num', unit:'小时'},
   {key:'waterMl',         name:'饮水',      type:'num', unit:'毫升'},
@@ -73,8 +95,8 @@ var ITEMS = [
 ];
 var ITEM_MAP = {};
 ITEMS.forEach(function(it){ ITEM_MAP[it.key]=it; });
-var STD_KEYS  = ['dietOk','noAlcoholSweet','walkMin','sleepH','waterMl','sedentaryBreaks','relax'];
-var BUSY_KEYS = ['dietOk','noAlcoholSweet','walkMin','sleepRest'];
+var STD_KEYS  = ['dietOk','noAlcoholSweet','noSmoke','walkMin','sleepH','waterMl','sedentaryBreaks','relax'];
+var BUSY_KEYS = ['dietOk','noAlcoholSweet','noSmoke','walkMin','sleepRest'];
 
 var TIPS = {
   diet: '三餐规律，不跳餐、不吃撑。午晚餐尽量半盘非淀粉类蔬菜、四分之一鱼肉蛋豆、四分之一主食。<b>土豆、玉米、山药算主食。</b><br>参考热量约1300～1400千卡/日（碳水45%、蛋白质30%、脂肪25%），具体以营养科方案为准。气虚质宜选平和补气食物：山药、小米、南瓜、红枣、牛肉、鲫鱼、鸡肉等；少生冷、苦寒、辛辣。<b>注意：蜂蜜、红糖、桂圆、荔枝虽属体质宜食，但含糖高，血糖管理期间请控糖优先、遵医嘱。</b>',
@@ -84,7 +106,8 @@ var TIPS = {
   water: '分次饮水，避免晚上集中补喝。没有限水要求时参考原计划，具体服从医嘱。肾结晶者建议保持充足饮水（如医嘱无限制）。',
   sleep: '固定起床时间，预留7～9小时睡眠；睡前30分钟结束工作。晚睡时逐步调整，不必一次提前很多。',
   sedentary: '每坐约1小时，起身活动3分钟；避免长时间保持同一姿势（骨质增生者尤甚），注意关节保暖。',
-  relax: '按摩、缓慢呼吸或穴位按揉任选一种，3～5分钟即可。'
+  relax: '按摩或缓慢呼吸任选一种，3～5分钟即可。',
+  noSmoke: '戒烟初期，烟瘾发作通常持续 3～5 分钟就会减弱。可以：喝一杯水、慢慢呼吸 5 次、起身走几步、嚼无糖口香糖。聚会场景特别容易复吸，提前准备一个替代动作。'
 };
 var RELAX_TIPS = '印堂按揉：两眉之间的中点，干净指腹轻柔画圈2～3分钟，力度舒适、不疼；皮肤破损或红肿时跳过。仅作辅助放松。<br>'
   + '缓慢呼吸：坐稳、肩膀放松，自然吸气、缓慢呼气，不憋气；头晕时停止。<br>'
@@ -136,7 +159,7 @@ function toast(msg){
 function blankDay(){
   return {
     mode: undefined,
-    dietOk: undefined, noAlcoholSweet: undefined, sedentaryBreaks: undefined, relax: undefined,
+    dietOk: undefined, noAlcoholSweet: undefined, noSmoke: undefined, sedentaryBreaks: undefined, relax: undefined,
     sleepRest: undefined,
     skipped: {},
     waterMl:'', walkMin:'', sleepH:'',
@@ -196,7 +219,7 @@ function migrate(db){
     Object.keys(db.days).forEach(function(ds){
       var d = db.days[ds] || {};
       /* 旧版本默认值 false 并不能代表真实完成情况 → 还原为未记录 */
-      ['dietOk','noAlcoholSweet','sedentaryBreaks','relax','sleepRest'].forEach(function(k){
+      ['dietOk','noAlcoholSweet','noSmoke','sedentaryBreaks','relax','sleepRest'].forEach(function(k){
         if(d[k]===false) d[k]=undefined;
         if(d[k]===undefined) delete d[k];
       });
@@ -289,7 +312,7 @@ function isRecorded(d){ return !!d && typeof d==='object'; }
 function dayHasContent(d){
   if(!isRecorded(d)) return false;
   if(isSubmitted(d)) return true;
-  var has = ['dietOk','noAlcoholSweet','sedentaryBreaks','relax','sleepRest'].some(function(k){ return d[k]!==undefined; });
+  var has = ['dietOk','noAlcoholSweet','noSmoke','sedentaryBreaks','relax','sleepRest'].some(function(k){ return d[k]!==undefined; });
   has = has || ['waterMl','walkMin','sleepH','wakeTime','weight','waist','stress','oneLine','did','tomorrow','note']
     .some(function(k){ return d[k]!==undefined && d[k]!==''; });
   has = has || (Array.isArray(d.glucose) && d.glucose.length>0);
@@ -321,6 +344,16 @@ function streak(){
   if(!isSubmitted(DB.days[d])) d = addDays(d,-1);
   while(DB.days[d] && isSubmitted(DB.days[d])){ s++; d=addDays(d,-1); }
   return s;
+}
+/* 取最近一次记录的体重；没有则返回基线 */
+function baselineOrLatestWeight(){
+  var ds = Object.keys(DB.days).sort();
+  for(var i=ds.length-1;i>=0;i--){
+    var w = num(DB.days[ds[i]].weight);
+    if(w!=null) return w.toFixed(1);
+  }
+  var bw = num((DB.baseline.weight||{}).value);
+  return bw!=null ? bw.toFixed(1) : '—';
 }
 /* 当日模式目标完成：该模式全部项目都达到完成/已记录 */
 function dayModeKeys(d){ return (d.mode==='busy') ? BUSY_KEYS : STD_KEYS; }
@@ -393,16 +426,40 @@ function renderToday(){
     +   '<div class="hero-stat"><div class="v">'+weekSubmittedDays(currentWeek())+'</div><div class="k">本周已打卡 天</div></div>'
     +   '<div class="hero-stat"><div class="v">'+submittedDates().length+'</div><div class="k">累计已打卡 天</div></div>'
     + '</div>'
-    + '<div class="hero-sub">连续打卡 '+st+' 天 · 周期 '+CYCLE+'</div>'
+        + '<div class="hero-sub">连续打卡 '+st+' 天 · 周期 '+CYCLE+'</div>'
     + '</div>';
+
+  /* 三月总目标进度条 */
+  var qStart = parseD(QUARTER.start), qEnd = parseD(QUARTER.end), qToday = parseD(todayStr());
+  var qTotal = (qEnd-qStart)/86400000;
+  var qDone  = Math.max(0, Math.min(qTotal, Math.round((qToday-qStart)/86400000)));
+  var qPct   = Math.round(qDone/qTotal*100);
+  var qLabel;
+  if(qDone <= 0)              qLabel = '三月目标还剩 '+(Math.round((qStart-parseD(t))/86400000))+' 天开始';
+  else if(qDone > qTotal)     qLabel = '三月目标周期已结束';
+  else                        qLabel = '三月目标第 '+qDone+' 天 / 共 '+qTotal+' 天';
+  html += '<div class="qcard">'
+    + '<div class="qcard-head"><b>🎯 '+esc(QUARTER.title)+'</b></div>'
+    + '<div class="qbar"><div class="qbar-inner" style="width:'+qPct+'%"></div></div>'
+    + '<div class="qbar-labels"><span>'+esc(qLabel)+'</span><span>已完成 '+qPct+'%</span></div>';
+  var qDaysLeft = Math.max(0, qTotal - qDone);
+  html += '<div class="qcard-body"><div class="qstat">当前体重 <b>'+esc(baselineOrLatestWeight())+' kg</b>（基线 '+QUARTER.baselineWeight+' → 目标 '+QUARTER.targetWeight+'）</div>'
+    + '<div class="qstat">三月还剩 <b>'+qDaysLeft+' 天</b> · 平均每周减重约 <b>'+((QUARTER.baselineWeight-QUARTER.targetWeight)/12).toFixed(1)+' kg</b></div></div>';
+  QUARTER.stages.forEach(function(stg,i){
+    var cls='qstage';
+    if(i===0 && qDone<=28) cls += ' active';
+    else if(i===1 && qDone>28 && qDone<=56) cls += ' active';
+    else if(i===2 && qDone>56) cls += ' active';
+    html += '<div class="'+cls+'"><b>'+esc(stg.weeks)+' · '+esc(stg.focus)+'</b> — '+esc(stg.desc)+'</div>';
+  });
+  html += '</div>';
 
   if(plan.review){
     var wk=weekOfIdx(idx);
     var dismissed=(DB.settings.dismissedBackup||[]).indexOf(wk)>=0;
     html += '<div class="notice" style="margin-bottom:12px">📋 <b>今天是周复盘日</b>：在第 '+wk+' 周的「下周调整」里写下一句调整方向。</div>';
-    if(!dismissed){
-      html += '<div class="banner"><div class="banner-txt">📦 建议本周导出一次备份（换设备或清理浏览器后数据无法找回）</div>'
-        + '<button class="banner-x" data-dismiss-backup="'+wk+'">✕</button></div>';
+    if(plan.medicCheck){
+      html += '<div class="notice" style="margin-bottom:12px;color:var(--text);background:#fff4e6;border:1px solid #ffd591">🏥 <b>本周请安排一次门诊</b>：消化内科（肝酶 11 年异常 · 做 FIB-4）、内分泌（血糖复核）、心血管（降脂评估），三项不等体重降下来。</div>';
     }
   }
   if(plan.weigh){ html += '<div class="notice" style="margin-bottom:12px">⚖️ 今天建议<b>同条件称重</b>（晨起、如厕后、早餐前），并记录体重／腰围。</div>'; }
@@ -429,10 +486,11 @@ function renderToday(){
 
   /* 3. 今日行动与快捷打卡 */
   var dis = locked ? ' disabled' : '';
-  html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'极简版 4 项':'标准版 7 项')+'</span></div>';
+  html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'极简版 4 项':'标准版 8 项')+'</span></div>';
   if(!busy){
     html += actionTri(t,'dietOk','饮食规律，餐盘比例基本合理','',locked);
     html += actionTri(t,'noAlcoholSweet','无酒、无含糖饮料','',locked);
+    html += actionTri(t,'noSmoke','不吸烟','聚会、压力大时特别留意',locked);
     html += actionNum(t,'walkMin','步行','分钟','例如 30',locked,'plan-walk');
     html += actionNum(t,'sleepH','睡眠（昨晚）','小时','例如 7.5',locked);
     html += actionNum(t,'waterMl','饮水','毫升','例如 2500',locked,'quick-water');
@@ -442,6 +500,7 @@ function renderToday(){
     html += '<div class="chart-note" style="margin:-2px 0 8px">极简版保住这 4 项即可：规律吃饭、无酒无甜饮、步行10分钟、尽量按时休息。</div>';
     html += actionTri(t,'dietOk','规律吃饭','不跳餐、不吃撑',locked);
     html += actionTri(t,'noAlcoholSweet','无酒、无含糖饮料','',locked);
+    html += actionTri(t,'noSmoke','不吸烟','聚会、压力大时特别留意',locked);
     html += actionNum(t,'walkMin','步行（至少10分钟）','分钟','例如 15',locked,'plan-walk');
     html += actionTri(t,'sleepRest','尽量按时休息','目标 23:00 上床 / 7:00 起床',locked);
     html += '<details class="fold" id="fold-extra"'+(uiState.extra?' open':'')+'><summary>其他记录（睡眠／饮水／久坐／放松）</summary>'
@@ -1603,7 +1662,7 @@ function download(name,content,mime){
 }
 function toCSV(){
   var rows=[['日期','第几天','显示模式','是否已打卡','提交时间',
-    '饮食(完成/未完成/未记录)','无酒无甜饮(完成/未完成/未记录)',
+    '饮食(完成/未完成/未记录)','无酒无甜饮(完成/未完成/未记录)','不吸烟(完成/未完成/未记录)',
     '步行(分钟)','步行状态','睡眠_昨晚(小时)','睡眠状态','饮水(毫升)','饮水状态',
     '久坐中断(完成/未完成/未记录)','放松(完成/未完成/未记录)','放松是否跳过','尽量按时休息(完成/未完成/未记录)',
     '起床时间(当天实际)','体重(kg)','腰围(cm)',
@@ -1614,7 +1673,7 @@ function toCSV(){
     var gl=(d.glucose||[]);
     rows.push([ds, dayIndex(ds), (d.mode||'standard')==='busy'?'极简版':'标准版',
       isSubmitted(d)?'是':'否', d.submitTime||'',
-      triText(d,'dietOk'), triText(d,'noAlcoholSweet'),
+      triText(d,'dietOk'), triText(d,'noAlcoholSweet'), triText(d,'noSmoke'),
       hasNum(d.walkMin)?num(d.walkMin):'', hasNum(d.walkMin)?'已记录':'未记录',
       hasNum(d.sleepH)?num(d.sleepH):'', hasNum(d.sleepH)?'已记录':'未记录',
       hasNum(d.waterMl)?num(d.waterMl):'', hasNum(d.waterMl)?'已记录':'未记录',
@@ -1685,7 +1744,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 21;
+var APP_VERSION = 22;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;

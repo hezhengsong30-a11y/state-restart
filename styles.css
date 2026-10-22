@@ -647,3 +647,17 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 @media (max-width:400px){
   .focus-card .aic-stat-grid{grid-template-columns:1fr}
 }
+
+/* 三月目标卡片 */
+.qcard{background:linear-gradient(135deg,#f0f9f4 0%,#fdf6ec 100%);border:1px solid var(--border);border-radius:12px;padding:14px 14px 12px;margin:14px 0 12px}
+.qcard-head{font-size:.92rem;color:var(--text);margin-bottom:8px}
+.qbar{height:8px;background:var(--bg);border-radius:10px;overflow:hidden;margin:4px 0 4px}
+.qbar-inner{height:100%;background:linear-gradient(90deg,#2f7d5b,#d97706);border-radius:10px;transition:width .4s}
+.qbar-labels{display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-3);margin-bottom:8px}
+.qcard-body{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
+.qstat{font-size:.78rem;color:var(--text-2);line-height:1.5}
+.qstat b{color:var(--text);font-weight:600}
+.qstage{font-size:.78rem;color:var(--text-3);padding:5px 8px;border-radius:8px;margin:3px 0;line-height:1.5;background:rgba(0,0,0,.02)}
+.qstage b{color:var(--text-2)}
+.qstage.active{background:rgba(47,125,91,.09);border-left:3px solid #2f7d5b;color:var(--text)}
+.qstage.active b{color:var(--text);font-weight:600}
