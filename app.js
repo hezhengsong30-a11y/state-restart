@@ -1083,8 +1083,6 @@ function renderTrend(){
     html += '<canvas class="chart" id="ch-glucose"></canvas>';
     html += '<div class="legend"><span><i style="background:'+G_COLORS['空腹']+'"></i>空腹血糖（'+fasting.length+' 次）</span></div>';
     html += '<div class="chart-note">家用血糖仪每天早上测的就是空腹血糖。参考目标（2型糖尿病控制目标，仅供参考，具体遵医嘱）：4.4～7.0 mmol/L。糖化血红蛋白、体检复查等详细数据请在健康档案查看。</div>';
-    var series=[{points:fasting, color:G_COLORS['空腹']}];
-    drawLine($('#ch-glucose',el),series,'mmol/L');
   }
   html += '</div>';
 
@@ -1768,7 +1766,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 26;
+var APP_VERSION = 27;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
