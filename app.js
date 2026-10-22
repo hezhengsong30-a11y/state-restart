@@ -393,6 +393,13 @@ function renderToday(){
     : (idx<1 ? {focus:'计划尚未开始（10月20日开始）', walk:''}
     : {focus:'30天计划已结束，继续保持已养成的习惯', walk:'舒适步行'});
   var d = getDay(t);
+  /* 收集所有历史空腹血糖（跨日期）用于今日页一览 */
+  var histFasting=[];
+  Object.keys(DB.days).sort().forEach(function(ds){
+    (DB.days[ds].glucose||[]).forEach(function(g){
+      if(g.timing==='空腹'){ var v=num(g.value); if(v!=null) histFasting.push({date:ds, value:v, method:g.method||'', meds:g.meds||''}); }
+    });
+  });
   var submitted = isSubmitted(d);
   var locked = future || (isToday && submitted && !editing);
   var mode = d.mode || 'standard';
@@ -1779,7 +1786,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 23;
+var APP_VERSION = 24;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
