@@ -3,7 +3,10 @@
 'use strict';
 
 /* ========== 常量 ========== */
-var LS_KEY = 'women28_v1';
+var LEGACY_KEY = 'women28_v1';
+var LS_KEY = LEGACY_KEY;          /* 当前生效的存储键，登录后改为账号专属键 */
+var DATA_PREFIX = 'women28_data_';
+var currentEmail = null;
 var DEFAULT_LEN = 28;
 
 /* 6 种体质类型 */
@@ -287,7 +290,8 @@ function migrate(db){
   if(!db.baseline) db.baseline=blankBase();
   return db;
 }
-var DB = load();
+/* 数据在 boot() 中按当前登录账号加载，未登录时不读取任何账号数据 */
+var DB = blankDB();
 
 var saveState={ status:'idle', time:'' };
 function save(){
@@ -1412,6 +1416,13 @@ function renderSetting(){
   var poolCount=Object.keys(DB.settings.pool).length;
   html += '<div class="pool-hint">已勾选 '+poolCount+' 项 · 每周最多新增 1 项，本周期节奏不受影响</div></details>';
 
+  /* 账号 */
+  html += '<div class="card"><div class="card-title">账号 <span class="sub">数据按账号独立保存</span></div>'
+    + '<div class="setting-row"><div>当前登录<div class="desc">'+esc(currentEmail||'未登录')+'</div></div>'
+    + '<button class="btn ghost small" data-logout>退出登录</button></div>'
+    + '<div class="setting-row"><div>数据范围<div class="desc">仅保存在当前账号的本机浏览器，换设备前请先导出备份</div></div></div>'
+    + '</div>';
+
   /* 数据管理 */
   html += '<div class="card"><div class="card-title">数据管理 <span class="sub">最近备份：'+esc(s.lastExportAt||'尚未备份')+'</span></div>'
     + '<div class="setting-row"><div>导出 JSON<div class="desc">完整保存每日记录、体质与设置</div></div><button class="btn ghost small" id="btn-exp-json">导出</button></div>'
@@ -1686,6 +1697,75 @@ $$('.tab').forEach(function(btn){
   });
 });
 
-renderAll();
+/* ========== 账号相关 ========== */
+function accountKey(email){
+  return DATA_PREFIX + String(email||'').trim().toLowerCase();
+}
+function fillAccountBox(email){
+  var el=$('#acct-email');
+  if(el) el.textContent = email || '';
+}
+/* 首次登录时，可把登录前留下的旧数据绑定到当前账号，避免老数据“消失” */
+function maybeOfferLegacyMigration(){
+  var raw=null, declined=null;
+  try{ raw=localStorage.getItem(LEGACY_KEY); declined=localStorage.getItem('women28_legacy_declined'); }catch(e){ return; }
+  if(!raw || declined) return;
+  /* 账号已有真实内容才跳过（渲染时会自动创建空白的一天，不能用键数量判断） */
+  var hasContent=Object.keys(DB.days||{}).some(function(k){ return dayHasContent(DB.days[k]); });
+  if(hasContent) return;
+  showModal({
+    title:'发现本机已有打卡数据',
+    body:'<div class="modal-line">检测到加入账号体系之前留下的打卡记录，是否绑定到当前账号？</div>'
+      + '<div class="modal-note">绑定后数据归属当前账号，其他账号不会再读取到。</div>',
+    buttons:[
+      {label:'暂不绑定',cls:'ghost',onClick:function(){
+        try{ localStorage.setItem('women28_legacy_declined','1'); }catch(e){}
+        closeModal();
+      }},
+      {label:'绑定到本账号',cls:'',onClick:function(){
+        try{
+          var old=localStorage.getItem(LEGACY_KEY);
+          if(old){ DB=migrate(JSON.parse(old)); save(); localStorage.removeItem(LEGACY_KEY); }
+        }catch(e){}
+        closeModal(); renderAll(); toast('已绑定到当前账号');
+      }}
+    ]
+  });
+}
+
+/* ========== 启动（由 auth.js 在登录成功后调用） ========== */
+function boot(email){
+  currentEmail = email || null;
+  LS_KEY = email ? accountKey(email) : LEGACY_KEY;
+  DB = load();
+  currentTab='today'; viewDate=todayStr(); editing=false;
+  uiState={ feelEdit:false, extra:false };
+  $$('.tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')==='today'); });
+  $$('.page').forEach(function(p){ p.classList.remove('active'); });
+  var tp=$('#page-today'); if(tp) tp.classList.add('active');
+  fillAccountBox(currentEmail);
+  renderAll();
+  maybeOfferLegacyMigration();
+}
+/* 退出登录：清空内存中的数据，避免串号 */
+function unboot(){
+  currentEmail=null; DB=blankDB(); LS_KEY=LEGACY_KEY;
+  $$('.page').forEach(function(p){ p.innerHTML=''; p.classList.remove('active'); });
+  fillAccountBox('');
+}
+
+/* 退出登录按钮（侧边栏与设置页共用，事件委托） */
+document.addEventListener('click',function(e){
+  var t=e.target;
+  while(t && t!==document){
+    if(t.getAttribute && t.hasAttribute('data-logout')){
+      if(window.W28Auth) window.W28Auth.logout();
+      return;
+    }
+    t=t.parentNode;
+  }
+});
+
+window.W28App={ boot:boot, unboot:unboot, accountKey:accountKey, email:function(){ return currentEmail; } };
 
 })();

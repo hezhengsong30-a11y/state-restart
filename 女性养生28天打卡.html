@@ -816,6 +816,100 @@ details.tips>summary::-webkit-details-marker{display:none}
   main{max-width:1240px}
 }
 
+/* ===== v7 账号体系：登录 / 注册 ===== */
+body.auth-mode .topbar,
+body.auth-mode main,
+body.auth-mode .ver-tag{display:none}
+
+.auth-screen{display:none}
+.auth-screen.show{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px;
+  background:linear-gradient(160deg,#fff8f4 0%,#fdeee7 45%,#f7f5f2 100%);
+}
+.auth-wrap{
+  display:flex;width:100%;max-width:940px;
+  background:var(--card);border-radius:18px;overflow:hidden;
+  box-shadow:0 12px 48px rgba(31,41,55,.12);
+}
+/* 左侧品牌区 */
+.auth-side{
+  flex:0 0 44%;padding:44px 40px;color:#fff;
+  background:linear-gradient(160deg,#ff9166 0%,#ff6b35 55%,#e8551f 100%);
+  display:flex;flex-direction:column;justify-content:center;
+}
+.auth-logo{font-size:2.2rem;margin-bottom:14px}
+.auth-side h1{font-size:1.45rem;line-height:1.45;font-weight:700;margin-bottom:12px}
+.auth-sub{font-size:.88rem;line-height:1.75;opacity:.92;margin-bottom:26px}
+.auth-points{list-style:none;display:flex;flex-direction:column;gap:12px}
+.auth-points li{display:flex;gap:9px;align-items:flex-start;font-size:.83rem;line-height:1.6;opacity:.95}
+.auth-points span{flex:0 0 auto}
+
+/* 右侧表单区 */
+.auth-card{flex:1;padding:44px 40px;display:flex;flex-direction:column;justify-content:center}
+.auth-tabs{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:11px;margin-bottom:26px}
+.auth-tab{
+  flex:1;border:none;background:none;padding:9px 0;border-radius:8px;
+  font-size:.92rem;color:var(--text-2);cursor:pointer;font-weight:500;
+}
+.auth-tab.active{background:var(--card);color:var(--primary);font-weight:600;box-shadow:var(--shadow)}
+.auth-field{display:block;margin-bottom:15px}
+.auth-label{display:block;font-size:.8rem;color:var(--text-2);margin-bottom:6px}
+.auth-field input{
+  width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:9px;
+  font-size:.95rem;color:var(--text);background:#fff;outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.auth-field input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(255,107,53,.12)}
+.auth-row{display:flex;justify-content:space-between;align-items:center;font-size:.79rem;margin:2px 0 12px}
+.auth-check{display:flex;align-items:center;gap:6px;color:var(--text-2);cursor:pointer}
+.auth-check input{accent-color:var(--primary)}
+.auth-link{color:var(--primary);text-decoration:none}
+.auth-err{min-height:20px;font-size:.79rem;color:var(--danger);margin-bottom:6px}
+.auth-submit{
+  width:100%;padding:12px;border:none;border-radius:10px;
+  background:var(--primary);color:#fff;font-size:.98rem;font-weight:600;
+  letter-spacing:.08em;cursor:pointer;transition:background .15s;
+}
+.auth-submit:disabled{opacity:.6;cursor:default}
+.auth-foot{margin-top:18px;font-size:.73rem;line-height:1.7;color:var(--text-3);text-align:center}
+
+/* 侧边栏账号块（仅桌面端显示，手机上退出入口在设置页） */
+.account-box{display:none}
+@media (min-width:1024px){
+  .account-box{
+    display:block;margin-top:auto;padding:16px 8px 0;
+    border-top:1px solid var(--border);
+  }
+  .acct-email{
+    font-size:.76rem;color:var(--text-2);word-break:break-all;
+    line-height:1.5;margin-bottom:9px;
+  }
+  .acct-logout{
+    width:100%;padding:8px;border:1px solid var(--border);background:none;
+    border-radius:8px;color:var(--text-2);font-size:.8rem;cursor:pointer;
+    transition:border-color .15s,color .15s;
+  }
+  .acct-logout:hover{border-color:var(--primary);color:var(--primary)}
+}
+
+/* 手机端登录页：单列、满屏 */
+@media (max-width:768px){
+  .auth-screen.show{padding:0;align-items:stretch}
+  .auth-wrap{
+    flex-direction:column;max-width:none;border-radius:0;
+    box-shadow:none;min-height:100vh;
+  }
+  .auth-side{padding:34px 24px 26px;flex:0 0 auto}
+  .auth-logo{font-size:1.8rem;margin-bottom:10px}
+  .auth-side h1{font-size:1.2rem;margin-bottom:8px}
+  .auth-sub{font-size:.82rem;margin-bottom:16px}
+  .auth-points{gap:8px}
+  .auth-points li{font-size:.78rem}
+  .auth-card{padding:24px 24px 34px;justify-content:flex-start}
+  .auth-tabs{margin-bottom:20px}
+}
+
 </style>
 </head>
 <body>
@@ -828,6 +922,10 @@ details.tips>summary::-webkit-details-marker{display:none}
       <button class="tab" data-tab="trend"><span class="tab-ico">📈</span>趋势报告</button>
       <button class="tab" data-tab="setting"><span class="tab-ico">⚙️</span>计划设置</button>
     </nav>
+    <div class="account-box">
+      <div class="acct-email" id="acct-email"></div>
+      <button class="acct-logout" data-logout>退出登录</button>
+    </div>
   </div>
 </header>
 
@@ -838,6 +936,8 @@ details.tips>summary::-webkit-details-marker{display:none}
   <section id="page-setting" class="page"></section>
 </main>
 
+<div id="auth-screen" class="auth-screen"></div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -846,7 +946,10 @@ details.tips>summary::-webkit-details-marker{display:none}
 'use strict';
 
 /* ========== 常量 ========== */
-var LS_KEY = 'women28_v1';
+var LEGACY_KEY = 'women28_v1';
+var LS_KEY = LEGACY_KEY;          /* 当前生效的存储键，登录后改为账号专属键 */
+var DATA_PREFIX = 'women28_data_';
+var currentEmail = null;
 var DEFAULT_LEN = 28;
 
 /* 6 种体质类型 */
@@ -1130,7 +1233,8 @@ function migrate(db){
   if(!db.baseline) db.baseline=blankBase();
   return db;
 }
-var DB = load();
+/* 数据在 boot() 中按当前登录账号加载，未登录时不读取任何账号数据 */
+var DB = blankDB();
 
 var saveState={ status:'idle', time:'' };
 function save(){
@@ -2255,6 +2359,13 @@ function renderSetting(){
   var poolCount=Object.keys(DB.settings.pool).length;
   html += '<div class="pool-hint">已勾选 '+poolCount+' 项 · 每周最多新增 1 项，本周期节奏不受影响</div></details>';
 
+  /* 账号 */
+  html += '<div class="card"><div class="card-title">账号 <span class="sub">数据按账号独立保存</span></div>'
+    + '<div class="setting-row"><div>当前登录<div class="desc">'+esc(currentEmail||'未登录')+'</div></div>'
+    + '<button class="btn ghost small" data-logout>退出登录</button></div>'
+    + '<div class="setting-row"><div>数据范围<div class="desc">仅保存在当前账号的本机浏览器，换设备前请先导出备份</div></div></div>'
+    + '</div>';
+
   /* 数据管理 */
   html += '<div class="card"><div class="card-title">数据管理 <span class="sub">最近备份：'+esc(s.lastExportAt||'尚未备份')+'</span></div>'
     + '<div class="setting-row"><div>导出 JSON<div class="desc">完整保存每日记录、体质与设置</div></div><button class="btn ghost small" id="btn-exp-json">导出</button></div>'
@@ -2529,11 +2640,318 @@ $$('.tab').forEach(function(btn){
   });
 });
 
-renderAll();
+/* ========== 账号相关 ========== */
+function accountKey(email){
+  return DATA_PREFIX + String(email||'').trim().toLowerCase();
+}
+function fillAccountBox(email){
+  var el=$('#acct-email');
+  if(el) el.textContent = email || '';
+}
+/* 首次登录时，可把登录前留下的旧数据绑定到当前账号，避免老数据“消失” */
+function maybeOfferLegacyMigration(){
+  var raw=null, declined=null;
+  try{ raw=localStorage.getItem(LEGACY_KEY); declined=localStorage.getItem('women28_legacy_declined'); }catch(e){ return; }
+  if(!raw || declined) return;
+  /* 账号已有真实内容才跳过（渲染时会自动创建空白的一天，不能用键数量判断） */
+  var hasContent=Object.keys(DB.days||{}).some(function(k){ return dayHasContent(DB.days[k]); });
+  if(hasContent) return;
+  showModal({
+    title:'发现本机已有打卡数据',
+    body:'<div class="modal-line">检测到加入账号体系之前留下的打卡记录，是否绑定到当前账号？</div>'
+      + '<div class="modal-note">绑定后数据归属当前账号，其他账号不会再读取到。</div>',
+    buttons:[
+      {label:'暂不绑定',cls:'ghost',onClick:function(){
+        try{ localStorage.setItem('women28_legacy_declined','1'); }catch(e){}
+        closeModal();
+      }},
+      {label:'绑定到本账号',cls:'',onClick:function(){
+        try{
+          var old=localStorage.getItem(LEGACY_KEY);
+          if(old){ DB=migrate(JSON.parse(old)); save(); localStorage.removeItem(LEGACY_KEY); }
+        }catch(e){}
+        closeModal(); renderAll(); toast('已绑定到当前账号');
+      }}
+    ]
+  });
+}
+
+/* ========== 启动（由 auth.js 在登录成功后调用） ========== */
+function boot(email){
+  currentEmail = email || null;
+  LS_KEY = email ? accountKey(email) : LEGACY_KEY;
+  DB = load();
+  currentTab='today'; viewDate=todayStr(); editing=false;
+  uiState={ feelEdit:false, extra:false };
+  $$('.tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')==='today'); });
+  $$('.page').forEach(function(p){ p.classList.remove('active'); });
+  var tp=$('#page-today'); if(tp) tp.classList.add('active');
+  fillAccountBox(currentEmail);
+  renderAll();
+  maybeOfferLegacyMigration();
+}
+/* 退出登录：清空内存中的数据，避免串号 */
+function unboot(){
+  currentEmail=null; DB=blankDB(); LS_KEY=LEGACY_KEY;
+  $$('.page').forEach(function(p){ p.innerHTML=''; p.classList.remove('active'); });
+  fillAccountBox('');
+}
+
+/* 退出登录按钮（侧边栏与设置页共用，事件委托） */
+document.addEventListener('click',function(e){
+  var t=e.target;
+  while(t && t!==document){
+    if(t.getAttribute && t.hasAttribute('data-logout')){
+      if(window.W28Auth) window.W28Auth.logout();
+      return;
+    }
+    t=t.parentNode;
+  }
+});
+
+window.W28App={ boot:boot, unboot:unboot, accountKey:accountKey, email:function(){ return currentEmail; } };
 
 })();
 
 </script>
-<div class="ver-tag">v6</div>
+<script>
+/* 邮箱注册 / 登录 —— 本地占位实现
+ *
+ * 说明：当前为纯前端演示版，账号与密码仅保存在本机 localStorage，
+ *      密码做了简单哈希（非加密安全）。正式部署时请由后端接管认证。
+ *
+ * 开发接入后端：只需替换下方 W28_API 中的 register / login / logout / current / resetPassword
+ *              五个方法的实现（保持返回 Promise，参数与返回结构不变），界面代码无需改动。
+ */
+(function(){
+'use strict';
+
+var USERS_KEY   = 'women28_users';
+var SESSION_KEY = 'women28_session';
+
+/* ---------- localStorage 基础读写 ---------- */
+function readUsers(){
+  try{ var r=JSON.parse(localStorage.getItem(USERS_KEY)||'[]'); return Array.isArray(r)?r:[]; }catch(e){ return []; }
+}
+function writeUsers(list){
+  try{ localStorage.setItem(USERS_KEY, JSON.stringify(list)); }catch(e){}
+}
+function readSession(){
+  try{ var s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); return (s && s.email) ? s : null; }catch(e){ return null; }
+}
+function writeSession(s){
+  try{ s ? localStorage.setItem(SESSION_KEY, JSON.stringify(s)) : localStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+function normEmail(e){ return String(e||'').trim().toLowerCase(); }
+function validEmail(e){ return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(e); }
+/* 占位哈希：仅避免明文存储，不具备真实安全性 */
+function hashPwd(pwd){
+  var s='w28:'+String(pwd), h=5381;
+  for(var i=0;i<s.length;i++){ h=((h<<5)+h) ^ s.charCodeAt(i); }
+  return 'p1_'+(h>>>0).toString(36)+'_'+s.length;
+}
+function fail(msg){ return Promise.reject(new Error(msg)); }
+
+/* ========================================================================
+ *  认证接口层（占位实现）—— 开发接入后端时替换此对象
+ * ===================================================================== */
+var W28_API = {
+  register: function(email, password){
+    var em=normEmail(email);
+    if(!validEmail(em)) return fail('请输入正确的邮箱地址');
+    if(String(password).length<6) return fail('密码至少 6 位');
+    var users=readUsers();
+    if(users.some(function(u){ return u.email===em; })) return fail('该邮箱已注册，请直接登录');
+    users.push({ email:em, password:hashPwd(password), createdAt:new Date().toISOString() });
+    writeUsers(users);
+    return Promise.resolve({ email:em });
+  },
+
+  login: function(email, password){
+    var em=normEmail(email);
+    if(!validEmail(em)) return fail('请输入正确的邮箱地址');
+    if(!String(password)) return fail('请输入密码');
+    var u=readUsers().filter(function(x){ return x.email===em; })[0];
+    if(!u) return fail('该邮箱尚未注册，请先注册');
+    if(u.password!==hashPwd(password)) return fail('邮箱或密码不正确');
+    return Promise.resolve({ email:em });
+  },
+
+  logout: function(){
+    writeSession(null);
+    return Promise.resolve();
+  },
+
+  current: function(){
+    return readSession();
+  },
+
+  resetPassword: function(){
+    return fail('本地演示版暂不支持找回密码，正式部署后由后端提供');
+  }
+};
+/* ===================== 占位实现结束 ===================== */
+
+/* ---------- 界面 ---------- */
+var MODE='login';
+
+function template(){
+  return ''
+  + '<div class="auth-wrap">'
+  +   '<section class="auth-side">'
+  +     '<div class="auth-logo">🌸</div>'
+  +     '<h1>女性养生 · 28 天周期打卡</h1>'
+  +     '<p class="auth-sub">按月经周期分 6 个阶段，每天 8 项小事。不追求完美，只记录真实。</p>'
+  +     '<ul class="auth-points">'
+  +       '<li><span>📅</span>28 天分阶段计划，每天知道做什么</li>'
+  +       '<li><span>📈</span>体温、感受、行动趋势一目了然</li>'
+  +       '<li><span>🔒</span>数据按账号独立保存在本机</li>'
+  +     '</ul>'
+  +   '</section>'
+  +   '<section class="auth-card">'
+  +     '<div class="auth-tabs">'
+  +       '<button type="button" class="auth-tab active" data-mode="login">登录</button>'
+  +       '<button type="button" class="auth-tab" data-mode="register">注册</button>'
+  +     '</div>'
+  +     '<form class="auth-form" id="auth-form" novalidate>'
+  +       '<label class="auth-field"><span class="auth-label">邮箱</span>'
+  +         '<input type="email" id="auth-email" autocomplete="username" placeholder="you@example.com">'
+  +       '</label>'
+  +       '<label class="auth-field"><span class="auth-label">密码</span>'
+  +         '<input type="password" id="auth-pwd" autocomplete="current-password" placeholder="至少 6 位">'
+  +       '</label>'
+  +       '<label class="auth-field" id="auth-pwd2-field" style="display:none"><span class="auth-label">确认密码</span>'
+  +         '<input type="password" id="auth-pwd2" autocomplete="new-password" placeholder="再输入一次">'
+  +       '</label>'
+  +       '<div class="auth-row">'
+  +         '<label class="auth-check"><input type="checkbox" id="auth-show"> 显示密码</label>'
+  +         '<a class="auth-link" id="auth-forgot" href="javascript:void 0">忘记密码？</a>'
+  +       '</div>'
+  +       '<div class="auth-err" id="auth-err"></div>'
+  +       '<button class="auth-submit" id="auth-submit" type="submit">登 录</button>'
+  +     '</form>'
+  +     '<p class="auth-foot">本地演示版：账号与密码仅保存在本机浏览器，正式部署后由后端接管认证。</p>'
+  +   '</section>'
+  + '</div>';
+}
+
+function setMode(mode){
+  MODE=mode;
+  var scr=document.getElementById('auth-screen');
+  scr.querySelectorAll('.auth-tab').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-mode')===mode);
+  });
+  document.getElementById('auth-pwd2-field').style.display = (mode==='register')?'block':'none';
+  document.getElementById('auth-submit').textContent = (mode==='register')?'注 册':'登 录';
+  document.getElementById('auth-pwd').setAttribute('autocomplete', mode==='register'?'new-password':'current-password');
+  setErr('');
+}
+
+function setErr(msg){
+  var el=document.getElementById('auth-err');
+  if(el) el.textContent=msg||'';
+}
+
+function showAuth(mode){
+  var scr=document.getElementById('auth-screen');
+  if(!scr) return;
+  document.body.classList.add('auth-mode');
+  scr.classList.add('show');
+  scr.innerHTML=template();
+  setMode(mode||'login');
+  bindAuth();
+}
+
+function hideAuth(){
+  var scr=document.getElementById('auth-screen');
+  if(!scr) return;
+  scr.classList.remove('show');
+  scr.innerHTML='';
+  document.body.classList.remove('auth-mode');
+}
+
+function afterLogin(email){
+  writeSession({ email:email, loginAt:new Date().toISOString() });
+  hideAuth();
+  if(window.W28App) window.W28App.boot(email);
+}
+
+function bindAuth(){
+  var scr=document.getElementById('auth-screen');
+  scr.querySelectorAll('.auth-tab').forEach(function(b){
+    b.addEventListener('click', function(){ setMode(b.getAttribute('data-mode')); });
+  });
+  var showCb=document.getElementById('auth-show');
+  showCb.addEventListener('change', function(){
+    ['auth-pwd','auth-pwd2'].forEach(function(id){
+      var i=document.getElementById(id); if(i) i.type = showCb.checked ? 'text':'password';
+    });
+  });
+  document.getElementById('auth-forgot').addEventListener('click', function(){
+    W28_API.resetPassword().catch(function(err){ setErr(err.message); });
+  });
+  document.getElementById('auth-form').addEventListener('submit', function(ev){
+    ev.preventDefault();
+    submit();
+  });
+}
+
+function submit(){
+  var emailEl=document.getElementById('auth-email');
+  var pwdEl=document.getElementById('auth-pwd');
+  var pwd2El=document.getElementById('auth-pwd2');
+  var btn=document.getElementById('auth-submit');
+  var email=emailEl.value.trim();
+  var pwd=pwdEl.value;
+
+  setErr('');
+  if(!email){ setErr('请输入邮箱'); emailEl.focus(); return; }
+  if(!validEmail(email)){ setErr('邮箱格式不正确'); emailEl.focus(); return; }
+  if(!pwd){ setErr('请输入密码'); pwdEl.focus(); return; }
+  if(MODE==='register'){
+    if(pwd.length<6){ setErr('密码至少 6 位'); pwdEl.focus(); return; }
+    if(pwd!==pwd2El.value){ setErr('两次输入的密码不一致'); pwd2El.focus(); return; }
+  }
+
+  btn.disabled=true;
+  var action=(MODE==='register')?W28_API.register:W28_API.login;
+  action(email,pwd).then(function(res){
+    btn.disabled=false;
+    afterLogin(res.email);
+  }).catch(function(err){
+    btn.disabled=false;
+    setErr(err.message||'操作失败，请重试');
+  });
+}
+
+/* 对外暴露：认证接口 + 退出登录 */
+window.W28Auth={
+  register:function(e,p){ return W28_API.register(e,p); },
+  login:function(e,p){ return W28_API.login(e,p); },
+  current:function(){ return W28_API.current(); },
+  logout:function(){
+    W28_API.logout();
+    if(window.W28App) window.W28App.unboot();
+    showAuth('login');
+  }
+};
+
+/* 启动：有会话直接进入应用，否则显示登录页 */
+function start(){
+  var s=W28_API.current();
+  if(s && s.email){
+    if(window.W28App) window.W28App.boot(s.email);
+    else showAuth('login');
+  } else {
+    showAuth('login');
+  }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', start);
+else start();
+
+})();
+
+</script>
+<div class="ver-tag">v7</div>
 </body>
 </html>

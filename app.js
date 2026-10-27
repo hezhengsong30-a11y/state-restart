@@ -492,7 +492,9 @@ function renderToday(){
   html += '<div class="chart-note" style="margin:-4px 0 12px">极简版只简化显示，不影响其他记录，也不会自动打勾。</div>';
 
   /* 3. 今日行动与快捷打卡 */
+  /* 监测数据永远可编辑：血糖、体重、腰围、心情、起床时间 —— 不是承诺，是记录 */
   var dis = locked ? ' disabled' : '';
+  var disMon = ''; /* 监测类字段：永远不禁用 */
   html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'极简版 4 项':'标准版 8 项')+'</span></div>';
   if(!busy){
     html += actionTri(t,'dietOk','饮食规律，餐盘比例基本合理','',locked);
@@ -523,19 +525,19 @@ function renderToday(){
   html += '<div class="card"><div class="card-title">今日数值 <span class="sub">空着代表未记录，不算 0</span></div>';
   html += '<div class="num-summary" id="num-summary">'+numSummary(d)+'</div>';
   html += '<div class="chart-note" style="text-align:left">饮水量／步行在「今日行动」里填写，可用快捷按钮累加。</div>';
-  html += '<div class="field"><label>起床时间（当天实际）</label><input type="time"'+dis+' id="f-wake" value="'+esc(d.wakeTime)+'"></div>';
+  html += '<div class="field"><label>起床时间（当天实际）</label><input type="time"'+disMon+' id="f-wake" value="'+esc(d.wakeTime)+'"></div>';
   html += '<div class="chart-note" style="text-align:left">起床时间留空代表未记录，不会用设置里的目标时间代替。</div>';
   if(plan.weigh){
     html += '<div class="weigh-box"><div class="weigh-title">⚖️ 今天是指定测量日</div>'
       + '<div class="field-row">'
-      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+dis+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span></div>'
-      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+dis+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span></div>'
+      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span></div>'
+      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span></div>'
       + '</div></div>';
   } else {
     html += '<details class="fold" id="fold-measure"><summary>其他测量（体重／腰围）</summary>'
       + '<div class="field-row">'
-      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+dis+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span></div>'
-      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+dis+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span></div>'
+      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span></div>'
+      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span></div>'
       + '</div></details>';
   }
   html += '</div>';
@@ -559,7 +561,7 @@ function renderToday(){
           + '<span class="tag">空腹</span>'
           + (g.method?'<span class="tag">'+esc(g.method)+'</span>':'<span class="tag warn">测量方式待补充</span>')
           + (g.meds?'<span class="tag">用药：'+esc(g.meds)+'</span>':'')
-          + (locked?'':'<button class="del" data-del-glucose="'+realIdx+'">×</button>')+'</div>';
+          + '<button class="del" data-del-glucose="'+realIdx+'" title="删除">×</button></div>';
       });
     }
     /* 历史空腹（跨日期，倒序） */
@@ -580,40 +582,39 @@ function renderToday(){
         html += '<div class="glucose-item"><span class="val">'+esc(g.value)+'</span><span class="tag">mmol/L</span>'
           + '<span class="tag">'+esc(g.timing)+'</span>'
           + (g.method?'<span class="tag">'+esc(g.method)+'</span>':'<span class="tag warn">测量方式待补充</span>')
-          + (locked?'':'<button class="del" data-del-glucose="'+realIdx+'">×</button>')+'</div>';
+          + '<button class="del" data-del-glucose="'+realIdx+'" title="删除">×</button></div>';
       });
       html += '</details>';
     }
   }
-  if(!locked){
-    html += '<div class="field-row" style="margin-top:8px">'
-      + '<div class="field input-suffix"><input type="number" step="0.1" id="g-value" placeholder="数值"><span class="suffix">mmol/L</span></div>'
-      + '<div class="field"><select id="g-timing">'+G_TIMINGS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div>'
-      + '</div>'
-      + '<div class="field-row">'
-      + '<div class="field"><input type="text" id="g-method" placeholder="测量方式（如：家用血糖仪）"></div>'
-      + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况"></div>'
-      + '</div>'
-      + '<button class="btn secondary small" id="btn-add-glucose">+ 添加血糖记录</button>';
-  }
+  /* 血糖是监测数据，永远可添加（不受打卡锁影响） */
+  html += '<div class="field-row" style="margin-top:8px">'
+    + '<div class="field input-suffix"><input type="number" step="0.1" id="g-value" placeholder="数值"><span class="suffix">mmol/L</span></div>'
+    + '<div class="field"><select id="g-timing">'+G_TIMINGS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div>'
+    + '</div>'
+    + '<div class="field-row">'
+    + '<div class="field"><input type="text" id="g-method" placeholder="测量方式（如：家用血糖仪）"></div>'
+    + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况"></div>'
+    + '</div>'
+    + '<button class="btn secondary small" id="btn-add-glucose">+ 添加血糖记录</button>';
   html += '</details>';
 
   /* 6. 心情记录（默认折叠） */
   html += '<details class="fold card" id="fold-mood"'+(uiState.mood?' open':'')+'><summary>心情记录'
     + '<span class="fold-sub">'+(hasNum(d.stress)?('压力 '+esc(d.stress)+'/10'):'默认折叠，可不填')+'</span></summary>';
-  html += '<div class="field"><label>今日压力（0-10，可不填）</label><input type="number" min="0" max="10"'+dis+' id="f-stress" value="'+esc(d.stress)+'" placeholder="例如 6"></div>';
+  html += '<div class="field"><label>今日压力（0-10，可不填）</label><input type="number" min="0" max="10"'+disMon+' id="f-stress" value="'+esc(d.stress)+'" placeholder="例如 6"></div>';
   /* 情绪状态：气郁质追踪用，可选 */
   html += '<div class="field"><label>情绪状态（可选）</label><div class="chip-row" id="mood-row">'
     + ['low','neutral','good'].map(function(m){
         var on = d.mood===m;
-        return '<button type="button" class="chip'+(on?' on':'')+'" data-mood="'+m+'"'+(locked?' disabled':'')+'>'+MOOD_TEXT[m]+'</button>';
+        return '<button type="button" class="chip'+(on?' on':'')+'" data-mood="'+m+'">'+MOOD_TEXT[m]+'</button>';
       }).join('')
     + '</div></div>';
-  html += '<div class="field"><label>一句话记录（可不填）</label><textarea'+dis+' id="f-oneLine" placeholder="例如：今天有点累，但把午饭吃踏实了">'+esc(d.oneLine)+'</textarea></div>';
+  html += '<div class="field"><label>一句话记录（可不填）</label><textarea'+disMon+' id="f-oneLine" placeholder="例如：今天有点累，但把午饭吃踏实了">'+esc(d.oneLine)+'</textarea></div>';
   html += '<details class="fold" id="fold-moodmore"'+(uiState.moodMore?' open':'')+'><summary>更多记录</summary>'
-    + '<div class="field"><label>今天我做到了</label><textarea'+dis+' id="f-did" placeholder="一两句话">'+esc(d.did)+'</textarea></div>'
-    + '<div class="field"><label>明天最重要的一件事</label><textarea'+dis+' id="f-tomorrow" placeholder="一句话">'+esc(d.tomorrow)+'</textarea></div>'
-    + '<div class="field"><label>备注／复盘</label><textarea'+dis+' id="f-note" placeholder="复盘日写在这里">'+esc(d.note)+'</textarea></div>'
+    + '<div class="field"><label>今天我做到了</label><textarea'+disMon+' id="f-did" placeholder="一两句话">'+esc(d.did)+'</textarea></div>'
+    + '<div class="field"><label>明天最重要的一件事</label><textarea'+disMon+' id="f-tomorrow" placeholder="一句话">'+esc(d.tomorrow)+'</textarea></div>'
+    + '<div class="field"><label>备注／复盘</label><textarea'+disMon+' id="f-note" placeholder="复盘日写在这里">'+esc(d.note)+'</textarea></div>'
     + '</details>';
   html += '</details>';
 
@@ -1769,7 +1770,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 28;
+var APP_VERSION = 29;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;

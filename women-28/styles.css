@@ -806,3 +806,97 @@ details.tips>summary::-webkit-details-marker{display:none}
 @media (min-width:1440px){
   main{max-width:1240px}
 }
+
+/* ===== v7 账号体系：登录 / 注册 ===== */
+body.auth-mode .topbar,
+body.auth-mode main,
+body.auth-mode .ver-tag{display:none}
+
+.auth-screen{display:none}
+.auth-screen.show{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px;
+  background:linear-gradient(160deg,#fff8f4 0%,#fdeee7 45%,#f7f5f2 100%);
+}
+.auth-wrap{
+  display:flex;width:100%;max-width:940px;
+  background:var(--card);border-radius:18px;overflow:hidden;
+  box-shadow:0 12px 48px rgba(31,41,55,.12);
+}
+/* 左侧品牌区 */
+.auth-side{
+  flex:0 0 44%;padding:44px 40px;color:#fff;
+  background:linear-gradient(160deg,#ff9166 0%,#ff6b35 55%,#e8551f 100%);
+  display:flex;flex-direction:column;justify-content:center;
+}
+.auth-logo{font-size:2.2rem;margin-bottom:14px}
+.auth-side h1{font-size:1.45rem;line-height:1.45;font-weight:700;margin-bottom:12px}
+.auth-sub{font-size:.88rem;line-height:1.75;opacity:.92;margin-bottom:26px}
+.auth-points{list-style:none;display:flex;flex-direction:column;gap:12px}
+.auth-points li{display:flex;gap:9px;align-items:flex-start;font-size:.83rem;line-height:1.6;opacity:.95}
+.auth-points span{flex:0 0 auto}
+
+/* 右侧表单区 */
+.auth-card{flex:1;padding:44px 40px;display:flex;flex-direction:column;justify-content:center}
+.auth-tabs{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:11px;margin-bottom:26px}
+.auth-tab{
+  flex:1;border:none;background:none;padding:9px 0;border-radius:8px;
+  font-size:.92rem;color:var(--text-2);cursor:pointer;font-weight:500;
+}
+.auth-tab.active{background:var(--card);color:var(--primary);font-weight:600;box-shadow:var(--shadow)}
+.auth-field{display:block;margin-bottom:15px}
+.auth-label{display:block;font-size:.8rem;color:var(--text-2);margin-bottom:6px}
+.auth-field input{
+  width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:9px;
+  font-size:.95rem;color:var(--text);background:#fff;outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.auth-field input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(255,107,53,.12)}
+.auth-row{display:flex;justify-content:space-between;align-items:center;font-size:.79rem;margin:2px 0 12px}
+.auth-check{display:flex;align-items:center;gap:6px;color:var(--text-2);cursor:pointer}
+.auth-check input{accent-color:var(--primary)}
+.auth-link{color:var(--primary);text-decoration:none}
+.auth-err{min-height:20px;font-size:.79rem;color:var(--danger);margin-bottom:6px}
+.auth-submit{
+  width:100%;padding:12px;border:none;border-radius:10px;
+  background:var(--primary);color:#fff;font-size:.98rem;font-weight:600;
+  letter-spacing:.08em;cursor:pointer;transition:background .15s;
+}
+.auth-submit:disabled{opacity:.6;cursor:default}
+.auth-foot{margin-top:18px;font-size:.73rem;line-height:1.7;color:var(--text-3);text-align:center}
+
+/* 侧边栏账号块（仅桌面端显示，手机上退出入口在设置页） */
+.account-box{display:none}
+@media (min-width:1024px){
+  .account-box{
+    display:block;margin-top:auto;padding:16px 8px 0;
+    border-top:1px solid var(--border);
+  }
+  .acct-email{
+    font-size:.76rem;color:var(--text-2);word-break:break-all;
+    line-height:1.5;margin-bottom:9px;
+  }
+  .acct-logout{
+    width:100%;padding:8px;border:1px solid var(--border);background:none;
+    border-radius:8px;color:var(--text-2);font-size:.8rem;cursor:pointer;
+    transition:border-color .15s,color .15s;
+  }
+  .acct-logout:hover{border-color:var(--primary);color:var(--primary)}
+}
+
+/* 手机端登录页：单列、满屏 */
+@media (max-width:768px){
+  .auth-screen.show{padding:0;align-items:stretch}
+  .auth-wrap{
+    flex-direction:column;max-width:none;border-radius:0;
+    box-shadow:none;min-height:100vh;
+  }
+  .auth-side{padding:34px 24px 26px;flex:0 0 auto}
+  .auth-logo{font-size:1.8rem;margin-bottom:10px}
+  .auth-side h1{font-size:1.2rem;margin-bottom:8px}
+  .auth-sub{font-size:.82rem;margin-bottom:16px}
+  .auth-points{gap:8px}
+  .auth-points li{font-size:.78rem}
+  .auth-card{padding:24px 24px 34px;justify-content:flex-start}
+  .auth-tabs{margin-bottom:20px}
+}
