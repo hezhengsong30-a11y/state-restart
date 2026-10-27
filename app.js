@@ -1281,12 +1281,22 @@ function renderTrend(){
 
   el.innerHTML=html;
 
-  if($('#ch-weight',el)) drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg',
-    (bw!=null?[{ y:bw*0.95, color:'#d97706', label:'减重5%目标' }]:[]));
+  if($('#ch-weight',el)){
+    var wHLines = [];
+    if(bw!=null){ wHLines.push({ y:bw*0.95, color:'#d97706', label:'减重5%('+bw.toFixed(0)+'×0.95)' }); }
+    if(QUARTER && QUARTER.targetWeight!=null){ wHLines.push({ y:QUARTER.targetWeight, color:'#2f7d5b', label:'三月目标 '+QUARTER.targetWeight+'kg' }); }
+    drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg',wHLines);
+  }
   if($('#ch-glucose',el)){
     var fastingPoints=(gSeries['空腹']||[]).slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
     var series=[{points:fastingPoints, color:G_COLORS['空腹']}];
-    drawLine($('#ch-glucose',el),series,'mmol/L');
+    /* 血糖参考线：空腹正常范围 + 糖尿病控制目标（双区间） */
+    var gHLines=[
+      { y:6.1, color:'#2f7d5b', label:'正常上限 6.1' },
+      { y:3.9, color:'#2f7d5b', label:'正常下限 3.9' },
+      { y:7.0, color:'#d97706', label:'糖尿病目标 ≤7.0' },
+    ];
+    drawLine($('#ch-glucose',el),series,'mmol/L',gHLines);
   }
   bindWeeks(el);
 }
@@ -1945,7 +1955,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 32;
+var APP_VERSION = 33;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
