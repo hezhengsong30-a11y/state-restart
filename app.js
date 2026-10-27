@@ -279,6 +279,24 @@ function migrate(db){
   if(!Array.isArray(db.reviews)) db.reviews=[];
   if(!Array.isArray(db.monitorItems)) db.monitorItems=[];
   if(!Array.isArray(db.trash)) db.trash=[];
+  /* 血糖迁移：同天同 timing 只保留最新一条（覆盖逻辑） */
+  if(!db._migGlucoseDeduped){
+    Object.keys(db.days).forEach(function(ds){
+      var d=db.days[ds];
+      if(!Array.isArray(d.glucose)||d.glucose.length<=1){ db.days[ds]=d; return; }
+      var seen={}, dedup=[];
+      /* 最新在后，所以反向遍历、先到的留 */
+      for(var i=d.glucose.length-1;i>=0;i--){
+        var g=d.glucose[i];
+        if(!g||!g.timing){ dedup.unshift(g); continue; }
+        if(seen[g.timing]) continue; /* 同 timing 已经留过了（就是更晚的那条） */
+        seen[g.timing]=true; dedup.unshift(g);
+      }
+      d.glucose=dedup;
+      db.days[ds]=d;
+    });
+    db._migGlucoseDeduped=true;
+  }
   db.version = 4;
   return db;
 }
@@ -542,61 +560,45 @@ function renderToday(){
   }
   html += '</div>';
 
-  /* 5. 血糖记录（默认折叠） */
-  html += '<details class="fold card" id="fold-glucose"'+(uiState.glucose?' open':'')+'><summary>血糖记录'
-    + '<span class="fold-sub">'+((d.glucose.length>0||histFasting.length>0)?('共 '+histFasting.length+' 条空腹（今日 '+d.glucose.filter(function(x){return x.timing==='空腹';}).length+'）'):'默认折叠')+'</span></summary>';
-  html += '<div class="chart-note" style="text-align:left;margin:2px 0 8px">只跟踪空腹血糖（家用血糖仪每天早上测的就是空腹）。频次按医生要求，不为打卡加测。不因一次读数自行调整药量。</div>';
+  /* 5. 血糖记录（默认折叠，覆盖逻辑：同天同时机只保留最新一条） */
+  html += '<details class="fold card" id="fold-glucose"'+(uiState.glucose?' open':'')+'><summary>血糖记录（空腹）'
+    + '<span class="fold-sub">'+((d.glucose.length>0||histFasting.length>0)?('今日 '+d.glucose.filter(function(x){return x.timing==='空腹';}).length+' 条 · 历史 '+histFasting.length+' 条'):'默认折叠')+'</span></summary>';
+  html += '<div class="chart-note" style="text-align:left;margin:2px 0 8px">家用血糖仪每天早上测的就是空腹血糖。重复记录同天同时机会自动覆盖，只保留最新值。</div>';
 
-  /* 当天记录 */
-  var todayFasting = d.glucose.filter(function(g){ return g.timing==='空腹'; });
-  var todayOther   = d.glucose.filter(function(g){ return g.timing!=='空腹'; });
-  if(todayFasting.length===0 && histFasting.length===0){
-    html += '<div class="empty" style="padding:8px 0">还没有空腹血糖记录</div>';
+  /* 今日（所有时机） */
+  var todayGlucose = d.glucose.slice().reverse(); /* 最新在前 */
+  if(todayGlucose.length===0 && histFasting.length===0){
+    html += '<div class="empty" style="padding:8px 0">还没有血糖记录</div>';
   } else {
-    if(todayFasting.length>0){
-      html += '<div class="g-group">今日空腹</div>';
-      todayFasting.forEach(function(g){
-        var realIdx=d.glucose.indexOf(g);
+    if(todayGlucose.length>0){
+      html += '<div class="g-group">今日测量</div>';
+      todayGlucose.forEach(function(g){
         html += '<div class="glucose-item"><span class="val">'+esc(g.value)+'</span><span class="tag">mmol/L</span>'
-          + '<span class="tag">空腹</span>'
+          + '<span class="tag">'+esc(g.timing)+'</span>'
           + (g.method?'<span class="tag">'+esc(g.method)+'</span>':'<span class="tag warn">测量方式待补充</span>')
-          + (g.meds?'<span class="tag">用药：'+esc(g.meds)+'</span>':'')
-          + '<button class="del" data-del-glucose="'+realIdx+'" title="删除">×</button></div>';
+          + (g.meds?'<span class="tag">用药：'+esc(g.meds)+'</span>':'')+'</div>';
       });
     }
-    /* 历史空腹（跨日期，倒序） */
-    if(histFasting.length>0){
-      html += '<div class="g-group">历史空腹血糖（'+histFasting.length+' 条）</div>';
-      var histSorted = histFasting.slice().reverse(); /* 最新日期在前 */
-      histSorted.forEach(function(p){
+    /* 历史空腹（跨日期，最新在前，不含今天） */
+    var histOnly = histFasting.filter(function(p){ return p.date!==t; });
+    if(histOnly.length>0){
+      html += '<div class="g-group">历史空腹血糖（'+histOnly.length+' 条）</div>';
+      histOnly.slice().reverse().forEach(function(p){
         html += '<div class="glucose-item"><span class="val">'+p.value+'</span><span class="tag">mmol/L</span>'
           + '<span class="tag">空腹</span><span class="tag">'+dateLabel(p.date)+'</span>'
           + (p.method?'<span class="tag">'+esc(p.method)+'</span>':'<span class="tag warn">测量方式未记录</span>')+'</div>';
       });
     }
-    /* 当天的非空腹记录（餐后/随机等）—— 保留但单独折叠 */
-    if(todayOther.length>0){
-      html += '<details class="fold" style="margin-top:8px"><summary>其他时机（餐后/随机等）</summary>';
-      todayOther.forEach(function(g){
-        var realIdx=d.glucose.indexOf(g);
-        html += '<div class="glucose-item"><span class="val">'+esc(g.value)+'</span><span class="tag">mmol/L</span>'
-          + '<span class="tag">'+esc(g.timing)+'</span>'
-          + (g.method?'<span class="tag">'+esc(g.method)+'</span>':'<span class="tag warn">测量方式待补充</span>')
-          + '<button class="del" data-del-glucose="'+realIdx+'" title="删除">×</button></div>';
-      });
-      html += '</details>';
-    }
   }
-  /* 血糖是监测数据，永远可添加（不受打卡锁影响） */
   html += '<div class="field-row" style="margin-top:8px">'
     + '<div class="field input-suffix"><input type="number" step="0.1" id="g-value" placeholder="数值"><span class="suffix">mmol/L</span></div>'
     + '<div class="field"><select id="g-timing">'+G_TIMINGS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div>'
     + '</div>'
     + '<div class="field-row">'
     + '<div class="field"><input type="text" id="g-method" placeholder="测量方式（如：家用血糖仪）"></div>'
-    + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况"></div>'
+    + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况（可不填）"></div>'
     + '</div>'
-    + '<button class="btn secondary small" id="btn-add-glucose">+ 添加血糖记录</button>';
+    + '<button class="btn secondary small" id="btn-add-glucose">保存血糖（同天覆盖）</button>';
   html += '</details>';
 
   /* 6. 心情记录（默认折叠） */
@@ -896,19 +898,14 @@ function bindToday(el,d,t){
     var v=$('#g-value',el).value.trim();
     if(!v){ toast('请填写血糖数值'); return; }
     collectFields(el,d);
-    ensureDay(t).glucose.push({
-      value:v, timing:$('#g-timing',el).value,
+    var dd=ensureDay(t), timing=$('#g-timing',el).value;
+    /* 覆盖逻辑：同天同 timing 的只保留最新一条，不是追加 */
+    dd.glucose = (dd.glucose||[]).filter(function(g){ return g.timing!==timing; });
+    dd.glucose.push({
+      value:v, timing:timing,
       method:$('#g-method',el).value.trim(), meds:$('#g-meds',el).value.trim()
     });
-    save(); renderToday(); toast('已添加');
-  });
-  $$('[data-del-glucose]',el).forEach(function(b){
-    b.addEventListener('click',function(){
-      collectFields(el,d);
-      var dd=ensureDay(t);
-      dd.glucose.splice(+b.getAttribute('data-del-glucose'),1);
-      save(); renderToday();
-    });
+    save(); renderToday(); toast('已更新 · 覆盖了今日 '+timing+' 记录');
   });
 
   var btnDraft=$('#btn-draft',el);
@@ -1770,7 +1767,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 29;
+var APP_VERSION = 30;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
