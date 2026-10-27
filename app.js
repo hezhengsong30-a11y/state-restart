@@ -1282,21 +1282,17 @@ function renderTrend(){
   el.innerHTML=html;
 
   if($('#ch-weight',el)){
+    /* 体重基线：用户明确的三月目标（不管当前数据在什么位置，强制画出） */
     var wHLines = [];
-    if(bw!=null){ wHLines.push({ y:bw*0.95, color:'#d97706', label:'减重5%('+bw.toFixed(0)+'×0.95)' }); }
     if(QUARTER && QUARTER.targetWeight!=null){ wHLines.push({ y:QUARTER.targetWeight, color:'#2f7d5b', label:'三月目标 '+QUARTER.targetWeight+'kg' }); }
     drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg',wHLines);
   }
   if($('#ch-glucose',el)){
     var fastingPoints=(gSeries['空腹']||[]).slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
     var series=[{points:fastingPoints, color:G_COLORS['空腹']}];
-    /* 血糖参考线：空腹正常范围 + 糖尿病控制目标（双区间） */
-    var gHLines=[
-      { y:6.1, color:'#2f7d5b', label:'正常上限 6.1' },
-      { y:3.9, color:'#2f7d5b', label:'正常下限 3.9' },
-      { y:7.0, color:'#d97706', label:'糖尿病目标 ≤7.0' },
-    ];
-    drawLine($('#ch-glucose',el),series,'mmol/L',gHLines);
+    /* 血糖：正常范围 3.9-6.1 区间带（半透明绿色），用户目标是降到正常范围 */
+    var gBand=[{ min:3.9, max:6.1, color:'rgba(47,125,91,0.14)', label:'空腹正常范围' }];
+    drawLine($('#ch-glucose',el),series,'mmol/L',null,gBand);
   }
   bindWeeks(el);
 }
@@ -1405,8 +1401,8 @@ function bindWeeks(el){
   });
 }
 
-/* 简易折线图（多序列） */
-function drawLine(canvas, series, unit, hLines){
+/* 简易折线图（多序列）. hBand: [{min,max,color,label}] 区间带（半透明填充+上沿标签） */
+function drawLine(canvas, series, unit, hLines, hBand){
   var dpr=window.devicePixelRatio||1;
   var W=canvas.clientWidth, H=180;
   canvas.width=W*dpr; canvas.height=H*dpr;
@@ -1418,6 +1414,9 @@ function drawLine(canvas, series, unit, hLines){
   series.forEach(function(s){ all=all.concat(s.points.map(function(p){return p.y;})); });
   if(!all.length) return;
   var min=Math.min.apply(null,all), max=Math.max.apply(null,all);
+  /* 强制把 hLines 和 hBand 纳入 Y 轴范围 → 基线一定能画出来 */
+  (hLines||[]).forEach(function(hl){ if(hl.y!=null && !isNaN(hl.y)){ if(hl.y<min) min=hl.y; if(hl.y>max) max=hl.y; } });
+  (hBand||[]).forEach(function(b){ if(b.min!=null && b.min<min) min=b.min; if(b.max!=null && b.max>max) max=b.max; });
   if(Math.abs(max-min)<0.001){ max+=1; min-=1; }
   var span=max-min; min-=span*0.12; max+=span*0.12;
   var xs=[];
@@ -1426,16 +1425,35 @@ function drawLine(canvas, series, unit, hLines){
   var n=xs.length;
   function X(i){ return n===1 ? padL+(W-padL-padR)/2 : padL+(W-padL-padR)*i/(n-1); }
   function Y(v){ return padT+(H-padT-padB)*(1-(v-min)/(max-min)); }
+
+  /* 区间带（先画，在最底层） */
+  (hBand||[]).forEach(function(b){
+    if(b.min==null || b.max==null || b.min>=max || b.max<=min) return;
+    var yTop=Y(Math.min(b.min,b.max)), yBot=Y(Math.max(b.min,b.max));
+    ctx.fillStyle=b.color||'rgba(47,125,91,.10)';
+    ctx.fillRect(padL, yTop, W-padL-padR, yBot-yTop);
+    /* 上沿虚线 + 标签 */
+    ctx.save();
+    ctx.strokeStyle=b.color||'rgba(47,125,91,.4)'; ctx.globalAlpha=0.7;
+    ctx.setLineDash([4,3]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(padL,yTop); ctx.lineTo(W-padR,yTop); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha=1;
+    ctx.fillStyle='#2f7d5b'; ctx.font='9px sans-serif'; ctx.textAlign='right';
+    ctx.fillText((b.label||'')+' ('+b.min+'-'+b.max+')', W-padR-2, yTop-3);
+    ctx.restore();
+  });
+
+  /* 网格线（画在区间带之上、折线之下） */
   ctx.strokeStyle='#eef0f2'; ctx.fillStyle='#9ca3af'; ctx.font='10px sans-serif'; ctx.lineWidth=1;
   for(var g=0;g<=3;g++){
     var v=min+(max-min)*g/3, y=Y(v);
     ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(W-padR,y); ctx.stroke();
     ctx.fillText(v.toFixed(1),4,y+3);
   }
-  /* 目标参考线（虚线，只在范围内绘制） */
+
+  /* 目标参考线（虚线，现在一定能画，因为 min/max 已包含） */
   (hLines||[]).forEach(function(hl){
     if(hl==null || hl.y==null || isNaN(hl.y)) return;
-    if(hl.y<min || hl.y>max) return;
     var y=Y(hl.y);
     ctx.save();
     ctx.strokeStyle=hl.color||'#d97706'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
@@ -1955,7 +1973,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 33;
+var APP_VERSION = 34;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
