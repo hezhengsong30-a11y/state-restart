@@ -393,6 +393,163 @@ function modeFullDays(){
   }).length;
 }
 
+/* ========== 今日重点关注（基于前几天数据） ==========
+   规则必须具体触发，不能天天有；每条有冷却期；只碰重点问题（血糖/体重/习惯）。 */
+var FOCUS_COOLDOWN_DAYS = {
+  glcRunHigh: 5, glcRunLow: 7, glcSpike: 3, glcImprove: 7, hba1cNew: 90,
+  weightStall: 10, weightOnTrack: 7, weightSpike: 3, weightSlowdown: 7,
+  noSmokeMiss: 5, walkLow: 7, sleepLow: 5
+};
+function generateTodayFocus(db, today){
+  var hits = [];
+  var d = db.days[today] || {};
+  var cd = db.settings.focusLastShown || {}; /* 每条规则上次触发日期 */
+  /* 工具：冷却期内跳过 */
+  var since = function(rule){ return cd[rule] ? Math.max(0, Math.round((parseD(today)-parseD(cd[rule]))/86400000)) : 9999; };
+  var fire  = function(rule, hit){ hits.push(hit); cd[rule]=today; };
+
+  /* 读近 14 天数据（不含今天） */
+  var historyDays = [];
+  for(var i=1;i<=14;i++){
+    var ds = addDays(today, -i);
+    var dd = db.days[ds];
+    if(dd) historyDays.push({ds:ds, rec:dd});
+  }
+
+  /* === 血糖规则 === */
+  var fSeries = []; /* [{date, value}] 空腹 */
+  historyDays.forEach(function(h){
+    (h.rec.glucose||[]).forEach(function(g){
+      if(g.timing==='空腹'){ var v=num(g.value); if(v!=null && v>=2 && v<=25) fSeries.push({date:h.ds, value:v}); }
+    });
+  });
+  /* 1) 连续 N 天偏高 */
+  var hiRun=0, runMax=null;
+  for(var j=0;j<fSeries.length;j++){
+    if(fSeries[j].value>7.0){ hiRun++; runMax = runMax===null?fSeries[j].value:Math.max(runMax,fSeries[j].value); }
+    else break;
+  }
+  if(hiRun>=3 && since('glcRunHigh')>=FOCUS_COOLDOWN_DAYS.glcRunHigh){
+    fire('glcRunHigh', {lvl:'warn', text:'连续 '+hiRun+' 天空腹偏高（最高 '+runMax+' mmol/L），今天试着：不要跳过早餐、晚餐碳水减半'});
+  }
+  /* 2) 连续 N 天偏低 */
+  var loRun=0;
+  for(var j=0;j<fSeries.length;j++){
+    if(fSeries[j].value<4.4 && fSeries[j].value>2.5) loRun++;
+    else break;
+  }
+  if(loRun>=2 && since('glcRunLow')>=FOCUS_COOLDOWN_DAYS.glcRunLow){
+    fire('glcRunLow', {lvl:'warn', text:'连续 '+loRun+' 天空腹偏低，警惕低血糖，随身带糖、不要空腹运动'});
+  }
+  /* 3) 空腹突升（对比最近两条） */
+  if(fSeries.length>=2){
+    var a=fSeries[0].value, b=fSeries[1].value, diff=a-b;
+    if(diff>2.0 && since('glcSpike')>=FOCUS_COOLDOWN_DAYS.glcSpike){
+      fire('glcSpike', {lvl:'warn', text:'空腹从 '+b+' → '+a+' mmol/L（+'+diff.toFixed(1)+'），先排除昨晚餐高糖/饮酒/熬夜'});
+    }
+  }
+  /* 4) 持续下降（最近 3 天均值 vs 前 3 天均值） */
+  if(fSeries.length>=6){
+    var last3=0, prev3=0;
+    for(var k=0;k<3;k++) last3+=fSeries[k].value;
+    for(var k2=3;k2<6;k2++) prev3+=fSeries[k2].value;
+    last3/=3; prev3/=3;
+    if(last3-prev3<-0.5 && since('glcImprove')>=FOCUS_COOLDOWN_DAYS.glcImprove){
+      fire('glcImprove', {lvl:'info', text:'空腹在持续改善（近 3 天均值 '+last3.toFixed(1)+' vs 前 3 天 '+prev3.toFixed(1)+'），保持当前节奏'});
+    }
+  }
+  /* 5) 糖化新入（events 里 HbA1c 首次出现且 90 天内没提示过） */
+  var events = db.events || [];
+  var hbRecent = null;
+  events.forEach(function(ev){
+    var desc = (ev.labName||ev.desc||'')+'';
+    if(desc.indexOf('糖化')>=0 || desc.indexOf('HbA1c')>=0){
+      var u = (ev.unit||'')+'';
+      if(u.indexOf('%')>=0){ hbRecent = {value:num(ev.value), date:ev.date||ev.measuredAt}; }
+    }
+  });
+  if(hbRecent && hbRecent.value!=null && since('hba1cNew')>=FOCUS_COOLDOWN_DAYS.hba1cNew){
+    var hbStatus = hbRecent.value>=6.5 ? '已达糖尿病诊断阈值（≥6.5%）' : (hbRecent.value>=5.7?'处于糖尿病前期（5.7-6.4%）':'正常');
+    fire('hba1cNew', {lvl:'warn', text:(hbRecent.date?'('+dateLabel(hbRecent.date)+') ':'')+'糖化血红蛋白 '+hbRecent.value+'%，'+hbStatus+'。建议 3 个月后复查、与医生讨论'});
+  }
+
+  /* === 体重规则 === */
+  var wSeries = [];
+  historyDays.forEach(function(h){
+    var w=num(h.rec.weight);
+    if(w!=null && w>=30 && w<=200) wSeries.push({date:h.ds, value:w});
+  });
+  /* 1) 一周不动 */
+  if(wSeries.length>=3){
+    var w7 = wSeries.slice(0, Math.min(7, wSeries.length));
+    var wMin=Math.min.apply(null, w7.map(function(x){return x.value;}));
+    var wMax=Math.max.apply(null, w7.map(function(x){return x.value;}));
+    if(wMax-wMin<=0.3 && since('weightStall')>=FOCUS_COOLDOWN_DAYS.weightStall){
+      fire('weightStall', {lvl:'warn', text:'体重近 7 天稳定在 '+((wMin+wMax)/2).toFixed(1)+'±'+((wMax-wMin)/2).toFixed(1)+'kg，若想加快下降，检查饮食热量缺口'});
+    }
+  }
+  /* 2) 一周下降达标 */
+  if(wSeries.length>=2){
+    var wRecent=wSeries[0].value, wEarlier=wSeries[Math.min(6,wSeries.length-1)].value;
+    var wDiff = wEarlier - wRecent;
+    if(wDiff>=0.5 && since('weightOnTrack')>=FOCUS_COOLDOWN_DAYS.weightOnTrack){
+      fire('weightOnTrack', {lvl:'info', text:'上周体重 -'+wDiff.toFixed(1)+'kg，保持住当前节奏'});
+    }
+  }
+  /* 3) 单日跳涨 */
+  if(wSeries.length>=2){
+    var wA=wSeries[0].value, wB=wSeries[1].value;
+    if(wA-wB>1.0 && since('weightSpike')>=FOCUS_COOLDOWN_DAYS.weightSpike){
+      fire('weightSpike', {lvl:'warn', text:'体重从 '+wB+' → '+wA+'kg（+'+(wA-wB).toFixed(1)+'），大概率水分波动，连续 3 天关注'});
+    }
+  }
+  /* 4) 连续两周下降不足 */
+  if(wSeries.length>=12){
+    var wNow=wSeries[0].value, w2wAgo=wSeries[11].value;
+    if(w2wAgo-wNow<0.2 && since('weightSlowdown')>=FOCUS_COOLDOWN_DAYS.weightSlowdown){
+      fire('weightSlowdown', {lvl:'warn', text:'近两周体重几乎不变（-'+(w2wAgo-wNow).toFixed(1)+'kg），建议：① 检查饮水/步行记录 ② 本周加 2 次 30 分钟快走'});
+    }
+  }
+
+  /* === 习惯规则（近 7 天） === */
+  var last7 = historyDays.slice(0,7);
+  /* 1) 戒烟连续 N 天未打卡 */
+  var noSmokeMissRun=0;
+  for(var m=0;m<last7.length;m++){
+    if(last7[m].rec.noSmoke===true) noSmokeMissRun=0;
+    else if(last7[m].rec.noSmoke===false) noSmokeMissRun++;
+    else break;
+  }
+  if(noSmokeMissRun>=2 && since('noSmokeMiss')>=FOCUS_COOLDOWN_DAYS.noSmokeMiss){
+    fire('noSmokeMiss', {lvl:'warn', text:'近 '+noSmokeMissRun+' 天未完成戒烟打卡，烟瘾发作 3-5 分钟就减弱，聚会提前准备替代动作'});
+  }
+  /* 2) 本周步行天数不足 */
+  var walkDays = last7.filter(function(h){ return num(h.rec.walkMin)!=null && h.rec.walkMin>=15; }).length;
+  if(last7.length>=5 && walkDays<4 && since('walkLow')>=FOCUS_COOLDOWN_DAYS.walkLow){
+    fire('walkLow', {lvl:'info', text:'本周步行只有 '+walkDays+'/'+last7.length+' 天，每天至少 20 分钟快走'});
+  }
+  /* 3) 早睡连续 N 天未达标 */
+  var sleepMissRun=0;
+  for(var s=0;s<last7.length;s++){
+    var sh=num(last7[s].rec.sleepH);
+    if(sh!=null && sh>=6.5) sleepMissRun=0;
+    else if(sh!=null && sh<6) sleepMissRun++;
+    else break;
+  }
+  if(sleepMissRun>=3 && since('sleepLow')>=FOCUS_COOLDOWN_DAYS.sleepLow){
+    fire('sleepLow', {lvl:'warn', text:'近 '+sleepMissRun+' 天睡眠 < 6 小时，今晚 11:30 前关灯'});
+  }
+
+  /* 排序 + 去重（同 rule 只留一条）+ 最多 4 条 */
+  var order={urgent:0,warn:1,info:2,ok:3};
+  hits.sort(function(a,b){ return (order[a.lvl]||9)-(order[b.lvl]||9); });
+  hits = hits.slice(0,4);
+
+  /* 写回冷却状态 */
+  db.settings.focusLastShown = cd;
+  return hits;
+}
+
 /* ========== 页面状态 ========== */
 var currentTab='today';
 var viewDate=todayStr();
@@ -478,6 +635,28 @@ function renderToday(){
     html += '<div class="'+cls+'"><b>'+esc(stg.weeks)+' · '+esc(stg.focus)+'</b> — '+esc(stg.desc)+'</div>';
   });
   html += '</div>';
+
+  /* 今日重点关注（仅在看今天时生成，避免查看历史时污染冷却状态） */
+  if(isToday){
+    var focusHits = generateTodayFocus(DB, today);
+    if(focusHits.length>0){
+      html += '<div class="focus-card">';
+      html += '<div class="focus-head"><span class="focus-icon">🎯</span><div class="focus-title">今日重点关注</div></div>';
+      focusHits.forEach(function(h){
+        var lvlCls = 'focus-item focus-'+(h.lvl==='urgent'?'warn':(h.lvl==='warn'?'warn':'info'));
+        html += '<div class="'+lvlCls+'">';
+        html += '<span class="focus-dot"></span><span class="focus-text">'+esc(h.text)+'</span>';
+        html += '</div>';
+      });
+      html += '<div class="focus-foot">基于近 14 天数据自动生成，只作参考、不做诊断</div>';
+      html += '</div>';
+    } else {
+      html += '<div class="focus-card focus-empty">';
+      html += '<div class="focus-head"><span class="focus-icon">🌱</span><div class="focus-title">今日无特别关注</div></div>';
+      html += '<div class="focus-foot">保持当前节奏就好 · 数据多了以后会自动提醒</div>';
+      html += '</div>';
+    }
+  }
 
   if(plan.review){
     var wk=weekOfIdx(idx);
@@ -1766,7 +1945,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 31;
+var APP_VERSION = 32;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;

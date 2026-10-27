@@ -670,3 +670,19 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 .qstage b{color:var(--text-2)}
 .qstage.active{background:rgba(47,125,91,.09);border-left:3px solid #2f7d5b;color:var(--text)}
 .qstage.active b{color:var(--text);font-weight:600}
+
+/* 今日重点关注卡片 */
+.focus-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin:12px 0}
+.focus-empty{background:linear-gradient(135deg,#f9fafb,#f0f9f4);border:1px dashed #d1d5db;text-align:center}
+.focus-head{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.focus-icon{font-size:1.1rem}
+.focus-title{font-size:.92rem;font-weight:600;color:var(--text)}
+.focus-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:6px;font-size:.85rem;line-height:1.45}
+.focus-item.warn{background:#fff7ed;border:1px solid #fed7aa}
+.focus-item.info{background:#f0f9f4;border:1px solid #bbf7d0}
+.focus-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:7px}
+.focus-item.warn .focus-dot{background:#ea580c}
+.focus-item.info .focus-dot{background:#2f7d5b}
+.focus-text{flex:1;color:var(--text)}
+.focus-foot{font-size:.7rem;color:var(--text-3);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)}
+.focus-empty .focus-head{justify-content:center}
