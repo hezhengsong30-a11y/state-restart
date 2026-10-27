@@ -543,19 +543,18 @@ function renderToday(){
   html += '<div class="card"><div class="card-title">今日数值 <span class="sub">空着代表未记录，不算 0</span></div>';
   html += '<div class="num-summary" id="num-summary">'+numSummary(d)+'</div>';
   html += '<div class="chart-note" style="text-align:left">饮水量／步行在「今日行动」里填写，可用快捷按钮累加。</div>';
-  html += '<div class="field"><label>起床时间（当天实际）</label><input type="time"'+disMon+' id="f-wake" value="'+esc(d.wakeTime)+'"></div>';
-  html += '<div class="chart-note" style="text-align:left">起床时间留空代表未记录，不会用设置里的目标时间代替。</div>';
+  html += '<div class="field"><label>起床时间（当天实际）</label><input type="time"'+disMon+' id="f-wake" value="'+esc(d.wakeTime)+'"><div class="hint">重填即覆盖今日记录</div></div>';
   if(plan.weigh){
     html += '<div class="weigh-box"><div class="weigh-title">⚖️ 今天是指定测量日</div>'
       + '<div class="field-row">'
-      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span></div>'
-      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span></div>'
+      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span><div class="hint">重填即覆盖</div></div>'
+      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span><div class="hint">重填即覆盖</div></div>'
       + '</div></div>';
   } else {
     html += '<details class="fold" id="fold-measure"><summary>其他测量（体重／腰围）</summary>'
       + '<div class="field-row">'
-      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span></div>'
-      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span></div>'
+      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span><div class="hint">重填即覆盖</div></div>'
+      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span><div class="hint">重填即覆盖</div></div>'
       + '</div></details>';
   }
   html += '</div>';
@@ -1767,7 +1766,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 30;
+var APP_VERSION = 31;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
