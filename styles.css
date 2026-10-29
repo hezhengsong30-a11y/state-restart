@@ -373,6 +373,8 @@ details.tips>summary::-webkit-details-marker{display:none}
 .ms-name{color:var(--text-2);flex-shrink:0}
 .ms-val{color:var(--text-3);text-align:right}
 .ms-val.num{color:var(--primary)}
+/* P3-14 每周自动总结 */
+.week-summary{background:linear-gradient(135deg,#f9fafb,#f0f9f4);border:1px solid #d1d5db;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:.82rem;color:var(--text);line-height:1.7}
 .week-adjust{margin-top:10px;margin-bottom:0}
 .stat-cell .k2{font-size:.65rem;color:var(--text-3);margin-top:2px}
 

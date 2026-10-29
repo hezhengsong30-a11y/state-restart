@@ -24,6 +24,47 @@ var QUARTER = {
   ]
 };
 
+/* 动态解析三月目标：从 DB.settings.quarterGoal 读，fallback 到硬编码默认
+   baselineWeight 优先取 events 里 startDate 之前最近的体重测量 */
+function resolveQuarterGoal(){
+  var cfg = (DB.settings && DB.settings.quarterGoal) || {};
+  var q = {
+    title: cfg.title || QUARTER.title,
+    start: cfg.start || QUARTER.start,
+    end: cfg.end || QUARTER.end,
+    baselineWeight: cfg.baselineWeight || QUARTER.baselineWeight,
+    targetWeight: cfg.targetWeight || QUARTER.targetWeight,
+    stages: cfg.stages || QUARTER.stages,
+    medical: cfg.medical || QUARTER.medical
+  };
+  /* 从 events 找 start 之前最近的体重测量作为 baseline */
+  if(!cfg.baselineWeight && DB.events){
+    var candidates = [];
+    DB.events.forEach(function(ev){
+      var desc = (ev.labName||ev.desc||'')+'';
+      if(desc.indexOf('体重')>=0){
+        var v=num(ev.value); var u=(ev.unit||'')+'';
+        if(v!=null && u.indexOf('kg')>=0 && v>=30 && v<=200){
+          var ed = (ev.date||ev.measuredAt||'').replace(/\//g,'-').slice(0,10);
+          if(ed && ed<=q.start) candidates.push({date:ed, value:v});
+        }
+      }
+    });
+    if(candidates.length){
+      candidates.sort(function(a,b){ return a.date<b.date?1:-1; });
+      q.baselineWeight = candidates[0].value;
+    }
+  }
+  q.baselineBMI = cfg.baselineBMI || calcBMI(q.baselineWeight);
+  q.targetBMI = cfg.targetBMI || calcBMI(q.targetWeight);
+  return q;
+}
+function calcBMI(weight){
+  /* 身高 1.74m（默认值，用户可在设置页改） */
+  var h = num(DB.settings.height) || 1.74;
+  return (weight / (h*h)).toFixed(1);
+}
+
 var START = '2026-10-20';         // 兜底值（DB.cycles 未就绪时用）
 var END   = '2026-11-18';
 var TOTAL = 30;
@@ -363,6 +404,24 @@ function streak(){
   while(DB.days[d] && isSubmitted(DB.days[d])){ s++; d=addDays(d,-1); }
   return s;
 }
+/* P2-12 连续达标天数：连续 N 天行动项中 ≥80% done=true 且无 skip */
+function fullStreak(){
+  var s=0, d=todayStr();
+  if(!isSubmitted(DB.days[d])) d = addDays(d,-1);
+  while(DB.days[d] && isSubmitted(DB.days[d])){
+    var rec=DB.days[d];
+    var keys=dayModeKeys(rec);
+    var done=0, sk=false;
+    keys.forEach(function(k){
+      if(rec[k]===true) done++;
+      if(rec.skipped && rec.skipped[k]) sk=true;
+    });
+    var pct=done/keys.length;
+    if(pct>=0.8 && !sk){ s++; d=addDays(d,-1); }
+    else break;
+  }
+  return s;
+}
 /* 取最近一次记录的体重；没有则返回基线 */
 function baselineOrLatestWeight(){
   var ds = Object.keys(DB.days).sort();
@@ -416,18 +475,45 @@ function generateTodayFocus(db, today){
     if(dd) historyDays.push({ds:ds, rec:dd});
   }
 
-  /* === 血糖规则 === */
+  /* === 血糖规则 ===
+     数据源：打卡页 days[].glucose + 健康档案 events（空腹 + mmol/L）
+     合并后按日期排序、同天取最新值 */
   var fSeries = []; /* [{date, value}] 空腹 */
   historyDays.forEach(function(h){
     (h.rec.glucose||[]).forEach(function(g){
       if(g.timing==='空腹'){ var v=num(g.value); if(v!=null && v>=2 && v<=25) fSeries.push({date:h.ds, value:v}); }
     });
   });
-  /* 1) 连续 N 天偏高 */
+  /* 合并 events 里的空腹血糖（体检报告/化验） */
+  (db.events||[]).forEach(function(ev){
+    var desc = (ev.labName||ev.desc||'')+'';
+    var u = (ev.unit||'')+'';
+    if((desc.indexOf('空腹')>=0 || desc.indexOf('血糖')>=0) && u.indexOf('mmol')>=0 && u.indexOf('L')>=0){
+      var v=num(ev.value); if(v!=null && v>=2 && v<=25){
+        var ed = ev.date || ev.measuredAt || '';
+        if(ed){
+          ed = ed.replace(/\//g,'-').slice(0,10);
+          /* 只纳入近 14 天 */
+          if(addDays(today,-14) <= ed && ed <= today){
+            fSeries.push({date:ed, value:v});
+          }
+        }
+      }
+    }
+  });
+  /* 同天去重（打卡数据优先覆盖 events）+ 排序 */
+  fSeries.sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; });
+  var seenDate={}; fSeries=fSeries.filter(function(x){ if(seenDate[x.date]) return false; seenDate[x.date]=true; return true; });
+  /* 日期 gap 检查工具 */
+  var daysGap = function(d1,d2){ return Math.round(Math.abs(parseD(d1)-parseD(d2))/86400000); };
+  /* 1) 连续 N 天偏高（数据 gap ≤ 2 天才算"连续"） */
   var hiRun=0, runMax=null;
   for(var j=0;j<fSeries.length;j++){
-    if(fSeries[j].value>7.0){ hiRun++; runMax = runMax===null?fSeries[j].value:Math.max(runMax,fSeries[j].value); }
-    else break;
+    if(fSeries[j].value>7.0){
+      /* 上一条如果 gap > 2 天，重置计数器 */
+      if(hiRun>0 && daysGap(fSeries[j-1].date, fSeries[j].date)>2) break;
+      hiRun++; runMax = runMax===null?fSeries[j].value:Math.max(runMax,fSeries[j].value);
+    } else break;
   }
   if(hiRun>=3 && since('glcRunHigh')>=FOCUS_COOLDOWN_DAYS.glcRunHigh){
     fire('glcRunHigh', {lvl:'warn', text:'连续 '+hiRun+' 天空腹偏高（最高 '+runMax+' mmol/L），今天试着：不要跳过早餐、晚餐碳水减半'});
@@ -435,27 +521,32 @@ function generateTodayFocus(db, today){
   /* 2) 连续 N 天偏低 */
   var loRun=0;
   for(var j=0;j<fSeries.length;j++){
-    if(fSeries[j].value<4.4 && fSeries[j].value>2.5) loRun++;
-    else break;
+    if(fSeries[j].value<4.4 && fSeries[j].value>2.5){
+      if(loRun>0 && daysGap(fSeries[j-1].date, fSeries[j].date)>2) break;
+      loRun++;
+    } else break;
   }
   if(loRun>=2 && since('glcRunLow')>=FOCUS_COOLDOWN_DAYS.glcRunLow){
     fire('glcRunLow', {lvl:'warn', text:'连续 '+loRun+' 天空腹偏低，警惕低血糖，随身带糖、不要空腹运动'});
   }
-  /* 3) 空腹突升（对比最近两条） */
-  if(fSeries.length>=2){
+  /* 3) 空腹突升（gap ≤ 3 天才可信） */
+  if(fSeries.length>=2 && daysGap(fSeries[0].date,fSeries[1].date)<=3){
     var a=fSeries[0].value, b=fSeries[1].value, diff=a-b;
     if(diff>2.0 && since('glcSpike')>=FOCUS_COOLDOWN_DAYS.glcSpike){
       fire('glcSpike', {lvl:'warn', text:'空腹从 '+b+' → '+a+' mmol/L（+'+diff.toFixed(1)+'），先排除昨晚餐高糖/饮酒/熬夜'});
     }
   }
-  /* 4) 持续下降（最近 3 天均值 vs 前 3 天均值） */
+  /* 4) 持续下降（检查首尾 gap ≤ 10 天） */
   if(fSeries.length>=6){
-    var last3=0, prev3=0;
-    for(var k=0;k<3;k++) last3+=fSeries[k].value;
-    for(var k2=3;k2<6;k2++) prev3+=fSeries[k2].value;
-    last3/=3; prev3/=3;
-    if(last3-prev3<-0.5 && since('glcImprove')>=FOCUS_COOLDOWN_DAYS.glcImprove){
-      fire('glcImprove', {lvl:'info', text:'空腹在持续改善（近 3 天均值 '+last3.toFixed(1)+' vs 前 3 天 '+prev3.toFixed(1)+'），保持当前节奏'});
+    var gSpan = daysGap(fSeries[0].date, fSeries[5].date);
+    if(gSpan<=10){
+      var last3=0, prev3=0;
+      for(var k=0;k<3;k++) last3+=fSeries[k].value;
+      for(var k2=3;k2<6;k2++) prev3+=fSeries[k2].value;
+      last3/=3; prev3/=3;
+      if(last3-prev3<-0.5 && since('glcImprove')>=FOCUS_COOLDOWN_DAYS.glcImprove){
+        fire('glcImprove', {lvl:'info', text:'空腹在持续改善（近 3 天均值 '+last3.toFixed(1)+' vs 前 3 天 '+prev3.toFixed(1)+'），保持当前节奏'});
+      }
     }
   }
   /* 5) 糖化新入（events 里 HbA1c 首次出现且 90 天内没提示过） */
@@ -479,25 +570,28 @@ function generateTodayFocus(db, today){
     var w=num(h.rec.weight);
     if(w!=null && w>=30 && w<=200) wSeries.push({date:h.ds, value:w});
   });
-  /* 1) 一周不动 */
+  /* 1) 一周不动（检查首尾 gap ≥ 5 天，确保真的有一周） */
   if(wSeries.length>=3){
-    var w7 = wSeries.slice(0, Math.min(7, wSeries.length));
-    var wMin=Math.min.apply(null, w7.map(function(x){return x.value;}));
-    var wMax=Math.max.apply(null, w7.map(function(x){return x.value;}));
-    if(wMax-wMin<=0.3 && since('weightStall')>=FOCUS_COOLDOWN_DAYS.weightStall){
-      fire('weightStall', {lvl:'warn', text:'体重近 7 天稳定在 '+((wMin+wMax)/2).toFixed(1)+'±'+((wMax-wMin)/2).toFixed(1)+'kg，若想加快下降，检查饮食热量缺口'});
+    var wSpan = daysGap(wSeries[0].date, wSeries[wSeries.length-1].date);
+    if(wSpan>=5){
+      var w7 = wSeries.slice(0, Math.min(7, wSeries.length));
+      var wMin=Math.min.apply(null, w7.map(function(x){return x.value;}));
+      var wMax=Math.max.apply(null, w7.map(function(x){return x.value;}));
+      if(wMax-wMin<=0.3 && since('weightStall')>=FOCUS_COOLDOWN_DAYS.weightStall){
+        fire('weightStall', {lvl:'warn', text:'体重近 7 天稳定在 '+((wMin+wMax)/2).toFixed(1)+'±'+((wMax-wMin)/2).toFixed(1)+'kg，若想加快下降，检查饮食热量缺口'});
+      }
     }
   }
   /* 2) 一周下降达标 */
-  if(wSeries.length>=2){
+  if(wSeries.length>=2 && daysGap(wSeries[0].date,wSeries[Math.min(6,wSeries.length-1)].date)>=5){
     var wRecent=wSeries[0].value, wEarlier=wSeries[Math.min(6,wSeries.length-1)].value;
     var wDiff = wEarlier - wRecent;
     if(wDiff>=0.5 && since('weightOnTrack')>=FOCUS_COOLDOWN_DAYS.weightOnTrack){
       fire('weightOnTrack', {lvl:'info', text:'上周体重 -'+wDiff.toFixed(1)+'kg，保持住当前节奏'});
     }
   }
-  /* 3) 单日跳涨 */
-  if(wSeries.length>=2){
+  /* 3) 单日跳涨（gap ≤ 3 天才可信） */
+  if(wSeries.length>=2 && daysGap(wSeries[0].date,wSeries[1].date)<=3){
     var wA=wSeries[0].value, wB=wSeries[1].value;
     if(wA-wB>1.0 && since('weightSpike')>=FOCUS_COOLDOWN_DAYS.weightSpike){
       fire('weightSpike', {lvl:'warn', text:'体重从 '+wB+' → '+wA+'kg（+'+(wA-wB).toFixed(1)+'），大概率水分波动，连续 3 天关注'});
@@ -608,11 +702,14 @@ function renderToday(){
     +   '<div class="hero-stat"><div class="v">'+weekSubmittedDays(currentWeek())+'</div><div class="k">本周已打卡 天</div></div>'
     +   '<div class="hero-stat"><div class="v">'+submittedDates().length+'</div><div class="k">累计已打卡 天</div></div>'
     + '</div>'
-        + '<div class="hero-sub">连续打卡 '+st+' 天 · 周期 '+CYCLE+'</div>'
+        + '<div class="hero-sub">连续打卡 '+st+' 天 · 周期 '+CYCLE
+        + (fullStreak()>=3 ? ' · <span style="color:#ea580c">🔥 连续达标 '+fullStreak()+' 天</span>' : '')
+        + '</div>'
     + '</div>';
 
-  /* 三月总目标进度条 */
-  var qStart = parseD(QUARTER.start), qEnd = parseD(QUARTER.end), qToday = parseD(todayStr());
+  /* 三月总目标进度条（从 DB.settings 或硬编码解析，baseline 从 events 自动取） */
+  var qg = resolveQuarterGoal();
+  var qStart = parseD(qg.start), qEnd = parseD(qg.end), qToday = parseD(todayStr());
   var qTotal = (qEnd-qStart)/86400000;
   var qDone  = Math.max(0, Math.min(qTotal, Math.round((qToday-qStart)/86400000)));
   var qPct   = Math.round(qDone/qTotal*100);
@@ -621,13 +718,13 @@ function renderToday(){
   else if(qDone > qTotal)     qLabel = '三月目标周期已结束';
   else                        qLabel = '三月目标第 '+qDone+' 天 / 共 '+qTotal+' 天';
   html += '<div class="qcard">'
-    + '<div class="qcard-head"><b>🎯 '+esc(QUARTER.title)+'</b></div>'
+    + '<div class="qcard-head"><b>🎯 '+esc(qg.title)+'</b></div>'
     + '<div class="qbar"><div class="qbar-inner" style="width:'+qPct+'%"></div></div>'
     + '<div class="qbar-labels"><span>'+esc(qLabel)+'</span><span>已完成 '+qPct+'%</span></div>';
   var qDaysLeft = Math.max(0, qTotal - qDone);
-  html += '<div class="qcard-body"><div class="qstat">当前体重 <b>'+esc(baselineOrLatestWeight())+' kg</b>（基线 '+QUARTER.baselineWeight+' → 目标 '+QUARTER.targetWeight+'）</div>'
-    + '<div class="qstat">三月还剩 <b>'+qDaysLeft+' 天</b> · 平均每周减重约 <b>'+((QUARTER.baselineWeight-QUARTER.targetWeight)/12).toFixed(1)+' kg</b></div></div>';
-  QUARTER.stages.forEach(function(stg,i){
+  html += '<div class="qcard-body"><div class="qstat">当前体重 <b>'+esc(baselineOrLatestWeight())+' kg</b>（基线 '+qg.baselineWeight+' → 目标 '+qg.targetWeight+' kg，BMI '+qg.baselineBMI+' → '+qg.targetBMI+'）</div>'
+    + '<div class="qstat">三月还剩 <b>'+qDaysLeft+' 天</b> · 平均每周减重约 <b>'+((qg.baselineWeight-qg.targetWeight)/12).toFixed(1)+' kg</b></div></div>';
+  qg.stages.forEach(function(stg,i){
     var cls='qstage';
     if(i===0 && qDone<=28) cls += ' active';
     else if(i===1 && qDone>28 && qDone<=56) cls += ' active';
@@ -692,7 +789,11 @@ function renderToday(){
   /* 监测数据永远可编辑：血糖、体重、腰围、心情、起床时间 —— 不是承诺，是记录 */
   var dis = locked ? ' disabled' : '';
   var disMon = ''; /* 监测类字段：永远不禁用 */
-  html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'极简版 4 项':'标准版 8 项')+'</span></div>';
+  html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'极简版 4 项':'标准版 8 项')+'</span>';
+  if(!submitted){
+    html += '<button class="btn ghost small" id="btn-skip-all" title="出差/生病等特殊情况，一键标记全部跳过">今日特殊 · 全部跳过</button>';
+  }
+  html += '</div>';
   if(!busy){
     html += actionTri(t,'dietOk','饮食规律，餐盘比例基本合理','',locked);
     html += actionTri(t,'noAlcoholSweet','无酒、无含糖饮料','',locked);
@@ -1078,18 +1179,37 @@ function bindToday(el,d,t){
     collectFields(el,d);
     var dd=ensureDay(t), timing=$('#g-timing',el).value;
     /* 覆盖逻辑：同天同 timing 的只保留最新一条，不是追加 */
+    var existed = (dd.glucose||[]).filter(function(g){ return g.timing===timing; });
     dd.glucose = (dd.glucose||[]).filter(function(g){ return g.timing!==timing; });
     dd.glucose.push({
       value:v, timing:timing,
       method:$('#g-method',el).value.trim(), meds:$('#g-meds',el).value.trim()
     });
-    save(); renderToday(); toast('已更新 · 覆盖了今日 '+timing+' 记录');
+    /* 先 flushDraft 把其他正在输入的字段落盘，再 renderToday 重建 DOM */
+    flushDraft();
+    toast(existed.length ? '已覆盖今日 '+timing+'（原值 '+existed[0].value+' → '+v+'）' : '已添加 '+v+' mmol/L '+timing);
+    renderToday();
+    bindToday($('#page-today'), DB.days[todayStr()], todayStr());
   });
 
   var btnDraft=$('#btn-draft',el);
   if(btnDraft) btnDraft.addEventListener('click',function(){
     if(flushDraft()) toast('草稿已保存 · '+d.draftSavedAt);
     else toast('保存失败，请重试');
+  });
+
+  /* P1-11 一键全部 skip（出差/生病） */
+  var btnSkipAll=$('#btn-skip-all',el);
+  if(btnSkipAll) btnSkipAll.addEventListener('click',function(){
+    if(!confirm('确认今天所有行动项都标记为跳过？\n（血糖/体重等监测数据不受影响）')) return;
+    var keys = dayModeKeys(d);
+    keys.forEach(function(k){
+      d.skipped = d.skipped || {};
+      d.skipped[k] = true;
+      delete d[k];
+    });
+    flushDraft();
+    renderToday(); toast('今日行动已全部标记跳过 ✓');
   });
 
   var btnSubmit=$('#btn-submit',el);
@@ -1283,8 +1403,9 @@ function renderTrend(){
 
   if($('#ch-weight',el)){
     /* 体重基线：用户明确的三月目标（不管当前数据在什么位置，强制画出） */
+    var qg2 = resolveQuarterGoal();
     var wHLines = [];
-    if(QUARTER && QUARTER.targetWeight!=null){ wHLines.push({ y:QUARTER.targetWeight, color:'#2f7d5b', label:'三月目标 '+QUARTER.targetWeight+'kg' }); }
+    if(qg2 && qg2.targetWeight!=null){ wHLines.push({ y:qg2.targetWeight, color:'#2f7d5b', label:'三月目标 '+qg2.targetWeight+'kg' }); }
     drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg',wHLines);
   }
   if($('#ch-glucose',el)){
@@ -1348,12 +1469,58 @@ function weekBlock(w, open){
   html += modeStatCol('极简版',busy,BUSY_KEYS);
   html += '</div>';
 
+  /* P3-14 每周自动总结（自然语言，基于已有的 counts 数据） */
+  html += '<div class="week-summary">'+generateWeekSummary({
+    recorded: recorded.length, submitted: submitted.length,
+    walkDays: walkN, walkSum: walkSum,
+    sleepN: sleepN, sleepAvg: sleepN?sleepSum/sleepN:null,
+    std: std, busy: busy
+  })+'</div>';
+
   html += '<div class="field week-adjust"><label>下周调整（一句话）</label>'
     + '<input type="text" data-week-adjust="'+w+'" value="'+esc((DB.weeks[w]&&DB.weeks[w].adjust)||'')+'" placeholder="例如：把晚饭后的步行固定成 15 分钟">'
     + '</div>';
   html += '</details>';
   return html;
 }
+/* P3-14 每周自动总结：基于统计数据生成一句话 */
+function generateWeekSummary(s){
+  var msgs=[];
+  /* 打卡完成度 */
+  if(s.submitted===0){ msgs.push('本周还没有任何打卡记录，先从明天开始'); }
+  else if(s.submitted>=6){ msgs.push('本周 '+s.submitted+'/7 天已打卡，节奏很好'); }
+  else if(s.submitted>=4){ msgs.push('本周打卡 '+s.submitted+'/7 天，保持住'); }
+  else if(s.submitted<=2){ msgs.push('本周打卡只有 '+s.submitted+'/7 天，下周优先补上'); }
+  /* 步行 */
+  if(s.walkDays){
+    if(s.walkDays>=5) msgs.push('步行 '+s.walkSum+' 分钟 · 覆盖 '+s.walkDays+' 天，达标不错');
+    else if(s.walkDays>=3) msgs.push('步行 '+s.walkSum+' 分钟 · 覆盖 '+s.walkDays+' 天，每天约 '+(s.walkSum/s.walkDays).toFixed(0)+' 分钟');
+    else if(s.walkDays<=1) msgs.push('步行只有 '+s.walkDays+' 天，下周加至少 4 天快走');
+  } else {
+    msgs.push('本周没有步行记录');
+  }
+  /* 睡眠 */
+  if(s.sleepAvg!=null){
+    if(s.sleepAvg>=7) msgs.push('睡眠平均 '+s.sleepAvg.toFixed(1)+' 小时，不错');
+    else if(s.sleepAvg>=6) msgs.push('睡眠平均 '+s.sleepAvg.toFixed(1)+' 小时，接近目标');
+    else msgs.push('睡眠平均 '+s.sleepAvg.toFixed(1)+' 小时，偏短');
+  }
+  /* 标准版习惯完成率 */
+  if(s.std.length>=3){
+    var doneCount=0, totalKeys=0;
+    s.std.forEach(function(rec){
+      STD_KEYS.forEach(function(k){ if(rec[k]===true) doneCount++; totalKeys++; });
+    });
+    if(totalKeys>0){
+      var pct = Math.round(doneCount/totalKeys*100);
+      if(pct>=80) msgs.push('标准版习惯完成率 '+pct+'%，整体达标');
+      else if(pct>=50) msgs.push('标准版习惯完成率 '+pct+'%');
+      else msgs.push('标准版习惯完成率 '+pct+'%，偏低');
+    }
+  }
+  return '📊 '+msgs.slice(0,3).join(' · ');
+}
+
 function modeStatCol(title,list,keys){
   var html='<div class="mode-col"><div class="mode-col-title">'+title+' <span>'+list.length+' 天</span></div>';
   if(list.length===0){ html += '<div class="mode-empty">该周没有'+title+'记录</div></div>'; return html; }
@@ -1518,9 +1685,30 @@ function renderSetting(){
     + '<div class="chart-note" style="text-align:left">目标时间只是参考，不会自动填成某一天的实际起床时间。</div>'
     + '<button class="btn secondary small" id="btn-save-base">保存基线</button></div>';
 
+  /* 三月目标设置（P1-9）：用户可修改起始/目标/时间，baselineWeight 留空则自动从 events 取 */
+  var qcfg = DB.settings.quarterGoal || {};
+  var qgFull = resolveQuarterGoal();
+  html += '<div class="card"><div class="card-title">三月目标设置 <span class="sub">修改后今日页和趋势图自动更新</span></div>';
+  html += '<div class="field-row">'
+    + '<div class="field"><label>起始体重（kg）</label><input type="number" step="0.1" id="qg-bw" value="'+esc(qcfg.baselineWeight||'')+'" placeholder="留空则从体检记录自动取"></div>'
+    + '<div class="field"><label>目标体重（kg）</label><input type="number" step="0.1" id="qg-tw" value="'+esc(qcfg.targetWeight||qgFull.targetWeight)+'"></div>'
+    + '</div>';
+  html += '<div class="field-row">'
+    + '<div class="field"><label>周期开始日</label><input type="date" id="qg-start" value="'+esc(qcfg.start||qgFull.start)+'"></div>'
+    + '<div class="field"><label>周期结束日</label><input type="date" id="qg-end" value="'+esc(qcfg.end||qgFull.end)+'"></div>'
+    + '</div>';
+  html += '<div class="field-row">'
+    + '<div class="field"><label>身高（m）</label><input type="number" step="0.01" id="qg-h" value="'+esc(DB.settings.height||1.74)+'"></div>'
+    + '<div class="field"><label>目标标题</label><input type="text" id="qg-title" value="'+esc(qcfg.title||qgFull.title)+'" placeholder="三个月 · 体重管理"></div>'
+    + '</div>';
+  html += '<div class="chart-note" style="text-align:left">当前解析：起始 '+qgFull.baselineWeight+'kg → 目标 '+qgFull.targetWeight+'kg · BMI '+qgFull.baselineBMI+' → '+qgFull.targetBMI+'</div>';
+  html += '<div class="chart-note" style="text-align:left">起始体重留空时，会在健康档案 events 中查找开始日之前最近的体重测量。</div>';
+  html += '<button class="btn secondary small" id="btn-save-qg">保存三月目标</button></div>';
+
   html += '<div class="card"><div class="card-title">数据管理 <span class="sub">最近备份：'+esc(DB.settings.lastExportAt||'尚未备份')+'</span></div>'
     + '<div class="setting-row"><div>导出 JSON<div class="desc">完整保存每日记录、基线与设置</div></div><button class="btn ghost small" id="btn-exp-json">导出</button></div>'
     + '<div class="setting-row"><div>导出 CSV<div class="desc">表头标明字段与单位，可用 Excel 打开</div></div><button class="btn ghost small" id="btn-exp-csv">导出</button></div>'
+    + '<div class="setting-row"><div>导出完整数据（含健康档案）<div class="desc">一键打包全部 localStorage 内容为 JSON 文件</div></div><button class="btn ghost small" id="btn-exp-all">导出完整备份</button></div>'
     + '<div class="setting-row"><div>导入备份<div class="desc">导入前会显示备份信息，可选择合并或替换</div></div><button class="btn ghost small" id="btn-import">导入</button></div>'
     + '<input type="file" id="file-import" accept=".json" style="display:none">'
     + '<div class="setting-row"><div>粘贴导入<div class="desc">手机不便选文件时，把补录包文本粘贴进来</div></div><button class="btn ghost small" id="btn-import-paste">粘贴</button></div>'
@@ -1584,6 +1772,30 @@ function renderSetting(){
     save(); renderTrend(); renderToday(); toast('基线已保存');
   });
 
+  /* P1-9 保存三月目标 */
+  $('#btn-save-qg',el).addEventListener('click',function(){
+    var bw = $('#qg-bw',el).value.trim();
+    var tw = $('#qg-tw',el).value.trim();
+    var st = $('#qg-start',el).value;
+    var ed = $('#qg-end',el).value;
+    var ht = $('#qg-h',el).value.trim();
+    var ti = $('#qg-title',el).value.trim();
+    if(!tw){ toast('目标体重必填'); return; }
+    if(!st || !ed){ toast('起止日期必填'); return; }
+    if(st>ed){ toast('结束日不能早于开始日'); return; }
+    DB.settings.quarterGoal = {
+      baselineWeight: bw ? +bw : null, /* null 时 resolveQuarterGoal 会从 events 自动取 */
+      targetWeight: +tw,
+      start: st, end: ed,
+      title: ti || '三个月目标'
+    };
+    if(ht) DB.settings.height = +ht;
+    save();
+    renderSetting(); renderToday(); renderTrend();
+    var g = resolveQuarterGoal();
+    toast('三月目标已更新：'+g.baselineWeight+'→'+g.targetWeight+'kg');
+  });
+
   $('#btn-exp-json',el).addEventListener('click',function(){
     DB.settings.lastExportAt=new Date().toLocaleString('zh-CN');
     save();
@@ -1598,6 +1810,16 @@ function renderSetting(){
     save();
     download('health30-'+todayStr()+'.csv', toCSV(), 'text/csv;charset=utf-8');
     renderSetting(); toast('已导出 CSV');
+  });
+  /* P2-8 导出完整备份（JSON + localStorage 全内容） */
+  $('#btn-exp-all',el).addEventListener('click',function(){
+    save();
+    var payload = {};
+    for(var k in localStorage){ try{ payload[k] = localStorage.getItem(k); }catch(err){} }
+    payload.__exportedAt = new Date().toISOString();
+    payload.__exportedFrom = navigator.userAgent.slice(0,60);
+    download('health30-full-backup-'+todayStr()+'.json', JSON.stringify(payload,null,2),'application/json');
+    renderSetting(); toast('完整备份已导出');
   });
   $('#btn-import',el).addEventListener('click',function(){ $('#file-import',el).click(); });
   $('#file-import',el).addEventListener('change',function(e){
@@ -1973,7 +2195,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 34;
+var APP_VERSION = 35;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
