@@ -258,26 +258,36 @@ function kcalBurnEstimate(d){
   var burn = Math.round(walkMin * 5 * 60 / 60);
   return { burn: burn, walkMin: walkMin };
 }
-/* 渲染时间选择：两个 select 并排（小时 0-23 + 分钟 00-59），纯24h制无AM/PM */
-function renderTimeSel(name, hhmm, disMon){
+/* 渲染时间选择：前面小 select 选"昨晚/今早"，后面 HH:MM 两个 select
+   dateOffset: -1=昨晚, 0=今早, +1=明早 等 */
+function renderTimeSel(name, hhmm, dateOffset, dateLabel, disMon){
   var pa = parseHM(hhmm || '');
   var hh = pa.h != null ? pa.h : 23;
   var mm = pa.m != null ? pa.m : 0;
+  /* 日期选项 */
+  var dOpts = '';
+  dateLabel.forEach(function(o){
+    dOpts += '<option value="'+o.offset+'"'+(o.offset===dateOffset?' selected':'')+'>'+o.label+'</option>';
+  });
+  /* 小时 00-23 */
   var hOpts = '';
   for(var hi=0; hi<24; hi++){
     var hv = hi<10 ? '0'+hi : ''+hi;
     hOpts += '<option value="'+hv+'"'+(hi===hh?' selected':'')+'>'+hv+'</option>';
   }
+  /* 分钟 00-59 */
   var mOpts = '';
   for(var mi=0; mi<60; mi++){
     var mv = mi<10 ? '0'+mi : ''+mi;
     mOpts += '<option value="'+mv+'"'+(mi===mm?' selected':'')+'>'+mv+'</option>';
   }
-  return '<div class="time-sel-row">'
-    + '<select class="time-sel time-hh" data-tn="'+name+'"'+disMon+'>'+hOpts+'</select>'
-    + '<span class="time-colon">:</span>'
-    + '<select class="time-sel time-mm" data-tn="'+name+'"'+disMon+'>'+mOpts+'</select>'
-    + '</div>';
+  return '<div class="time-sel-wrap">'
+    + '<select class="date-sel" data-tn="'+name+'" data-sub="date"'+disMon+'>'+dOpts+'</select>'
+    + '<div class="time-sel-row">'
+    +   '<select class="time-sel time-hh" data-tn="'+name+'" data-sub="hh"'+disMon+'>'+hOpts+'</select>'
+    +   '<span class="time-colon">:</span>'
+    +   '<select class="time-sel time-mm" data-tn="'+name+'" data-sub="mm"'+disMon+'>'+mOpts+'</select>'
+    + '</div></div>';
 }
 /* 解析时间字符串 —— 支持 "HH:MM" 和 "YYYY-MM-DDTHH:MM" 两种格式
    返回 { y, mo, d, h, m }（有日期时 y/mo/d 有值，否则 null） */
@@ -292,7 +302,21 @@ function parseHM(s){
   if(hmMatch){ return { h:+hmMatch[1], m:+hmMatch[2], y:null, mo:null, d:null }; }
   return {h:null,m:null,y:null,mo:null,d:null};
 }
-/* 根据入睡/苏醒时间自动算睡眠小时数（支持跨天、支持 datetime-local 精确日期） */
+/* 根据 viewDate + 日期偏移 + 纯时间 HH:MM 精确算睡眠小时 */
+function computeSleepHoursWithDate(viewDate, d){
+  var pa = parseHM(d.asleepTime || '');
+  var pw = parseHM(d.wakeTime || '');
+  if(pa.h==null || pw.h==null) return null;
+  var aDate = addDays(viewDate, d.asleepOffset != null ? d.asleepOffset : -1);
+  var wDate = addDays(viewDate, d.wakeOffset   != null ? d.wakeOffset   : 0);
+  var aMs = new Date(aDate+'T'+pad2(pa.h)+':'+pad2(pa.m)).getTime();
+  var wMs = new Date(wDate+'T'+pad2(pw.h)+':'+pad2(pw.m)).getTime();
+  var span = (wMs - aMs) / 60000;
+  if(span<=0 || span>12*60) return null;
+  return +(span/60).toFixed(1);
+}
+function pad2(n){ return n<10?'0'+n:''+n; }
+/* 根据入睡/苏醒时间自动算睡眠小时数（纯时间 fallback） */
 function computeSleepHours(asleep, wake){
   var as = parseHM(asleep), wk = parseHM(wake);
   if(as.h==null || wk.h==null) return null;
@@ -393,19 +417,22 @@ function renderModFeature(feature, t, d){
     html += '</div>';
   } else if(feature==='organ'){
     html += '<div class="feat organ-row">';
-    /* 入睡/苏醒：自定义 select（纯24h制，无AM/PM），两行 */
+    /* 入睡：日期选（昨晚/今早/前晚）+ HH:MM；苏醒同理 */
+    var asleepOff = d.asleepOffset != null ? d.asleepOffset : -1; /* 默认昨晚 */
+    var wakeOff   = d.wakeOffset   != null ? d.wakeOffset   : 0;  /* 默认今早 */
     html += '<div class="sleep-time-box">'
-      + '<div class="sleep-time-label">🌙 入睡时间（前一晚）</div>'
-      + renderTimeSel('asleep', d.asleepTime, disMon)
+      + '<div class="sleep-time-label">🌙 入睡时间</div>'
+      + renderTimeSel('asleep', d.asleepTime, asleepOff,
+          [{offset:-2,label:'前晚'},{offset:-1,label:'昨晚'},{offset:0,label:'今早'}], disMon)
       + '</div>';
     html += '<div class="sleep-time-box" style="margin-top:6px">'
-      + '<div class="sleep-time-label">☀️ 苏醒时间（今早）</div>'
-      + renderTimeSel('wake', d.wakeTime, disMon)
+      + '<div class="sleep-time-label">☀️ 苏醒时间</div>'
+      + renderTimeSel('wake', d.wakeTime, wakeOff,
+          [{offset:-1,label:'昨晚'},{offset:0,label:'今早'},{offset:1,label:'明早'}], disMon)
       + '</div>';
-    /* 睡眠小时数自动计算 */
-    var shVal = computeSleepHours(d.asleepTime, d.wakeTime);
+    /* 睡眠小时数（用 viewDate + offset 算绝对日期） */
+    var shVal = computeSleepHoursWithDate(t, d);
     html += '<div class="sleep-hours-line">睡眠 <b id="sleep-hours-live">'+(shVal!=null?shVal:'—')+'</b> 小时</div>';
-    /* 每晚脏腑排毒时段 */
     html += '<div class="sleep-zang-topic">🌿 每晚脏腑排毒时段</div>';
     html += organBarHtml(d.asleepTime, d.wakeTime);
     html += '</div>';
@@ -1565,22 +1592,27 @@ function bindToday(el,d,t){
     });
   });
 
-  /* 入睡/苏醒两个 select 变更 → 组合成 HH:MM 存 DB */
-  $$('.time-sel',el).forEach(function(sel){
+  /* 入睡/苏醒：日期/小时/分钟 任一 select 变更 → 组合存 DB */
+  $$('.date-sel, .time-sel',el).forEach(function(sel){
     sel.addEventListener('change',function(){
       var tn = sel.getAttribute('data-tn');
       var box = sel.closest('.sleep-time-box');
-      if(!box) return;
+      if(!box || !tn) return;
+      /* 日期偏移 */
+      var dateSel = box.querySelector('.date-sel');
+      var offset = dateSel ? parseInt(dateSel.value) : (tn==='asleep'?-1:0);
+      /* HH:MM */
       var hhSel = box.querySelector('.time-hh');
       var mmSel = box.querySelector('.time-mm');
       var hh = hhSel ? hhSel.value : '23';
       var mm = mmSel ? mmSel.value : '00';
       var hhmm = hh + ':' + mm;
-      if(tn === 'asleep'){ d.asleepTime = hhmm; }
-      else if(tn === 'wake'){ d.wakeTime = hhmm; }
-      var sh = computeSleepHours(d.asleepTime, d.wakeTime);
+      if(tn === 'asleep'){ d.asleepOffset = offset; d.asleepTime = hhmm; }
+      else if(tn === 'wake'){ d.wakeOffset = offset; d.wakeTime = hhmm; }
+      var sh = computeSleepHoursWithDate(viewDate, d);
       d.sleepH = sh!=null ? String(sh) : '';
       flushDraft();
+      /* 更新 UI */
       var row = sel.closest('.organ-row');
       if(row){
         var newBar = organBarHtml(d.asleepTime, d.wakeTime);
@@ -2662,7 +2694,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 52;
+var APP_VERSION = 53;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
