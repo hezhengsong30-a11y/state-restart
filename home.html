@@ -5,7 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>30天调理打卡</title>
-<link rel="stylesheet" href="styles.v37.css?v=38">
+<link rel="stylesheet" href="styles.v37.css?v=39">
+<script>
+/* 全局错误捕获：微信里 JS 崩了直接在屏幕上显示，不再白屏 */
+(function(){
+  function showErr(msg, src, line){
+    var box = document.getElementById('__errbox');
+    if(!box){
+      box = document.createElement('pre');
+      box.id = '__errbox';
+      box.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:#fef2f2;color:#991b1b;padding:20px;font:13px/1.5 Menlo,monospace;white-space:pre-wrap;z-index:99999;overflow:auto';
+      document.body.appendChild(box);
+    }
+    box.textContent += '\n• ' + msg + (src?' @ '+src+':'+line:'');
+  }
+  window.onerror = function(msg,src,line,col,err){ showErr(msg,src,line); };
+  window.addEventListener('unhandledrejection',function(e){ showErr('Promise: '+e.reason); });
+})();
+</script>
 </head>
 <body>
 <header class="topbar">
@@ -42,9 +59,9 @@
 <input type="file" id="fileReport" accept="image/*,application/pdf" hidden>
 <input type="file" id="fileGlucose" accept="image/*" capture="environment" hidden>
 
-<script src="app.v37.js?v=38"></script>
-<script src="archive-seed.v37.js?v=38"></script>
-<script src="health-archive.v37.js?v=38"></script>
-<div class="ver-tag">v38</div>
+<script src="app.v37.js?v=39"></script>
+<script src="archive-seed.v37.js?v=39"></script>
+<script src="health-archive.v37.js?v=39"></script>
+<div class="ver-tag">v39</div>
 </body>
 </html>
