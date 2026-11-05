@@ -874,10 +874,11 @@ function renderToday(){
     + '<div class="field"><select id="g-timing">'+G_TIMINGS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div>'
     + '</div>'
     + '<div class="field-row">'
-    + '<div class="field"><input type="text" id="g-method" placeholder="测量方式（如：家用血糖仪）"></div>'
+    + '<div class="field"><select id="g-method"><option value="">测量方式</option>'
+    + ['家用血糖仪','静脉血检测','动态血糖仪'].map(function(x){ return '<option>'+x+'</option>'; }).join('')
+    + '</select></div>'
     + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况（可不填）"></div>'
-    + '</div>'
-    + '<button class="btn secondary small" id="btn-add-glucose">保存血糖（同天覆盖）</button>';
+    + '</div>';
   html += '</details>';
 
   /* 6. 心情记录（默认折叠） */
@@ -1036,6 +1037,23 @@ function collectFields(el,d){
     var p=pair.split(':'), f=$('#'+p[0],el);
     if(f) d[p[1]]=f.value;
   });
+  /* 血糖：从输入框读取后，按同天同时机覆盖逻辑存入 glucose 数组
+     （不再依赖独立"保存血糖"按钮，随保存修改/提交打卡一起落盘） */
+  var gv = $('#g-value',el);
+  if(gv){
+    var val = gv.value.trim();
+    var timing = $('#g-timing',el).value;
+    if(val){
+      d.glucose = d.glucose || [];
+      d.glucose = d.glucose.filter(function(g){ return g.timing !== timing; });
+      d.glucose.push({
+        value: val,
+        timing: timing,
+        method: $('#g-method',el).value.trim(),
+        meds: $('#g-meds',el).value.trim()
+      });
+    }
+  }
 }
 
 function bindFolds(el){
@@ -1159,9 +1177,9 @@ function bindToday(el,d,t){
     });
   });
 
-  /* 数值输入：自动存草稿 */
+  /* 数值输入：自动存草稿（血糖输入框也加进来，不再依赖独立按钮） */
   var timer=null;
-  $$('#q-walkMin,#q-sleepH,#q-waterMl,#f-wake,#f-weight,#f-waist,#f-stress,#f-oneLine,#f-did,#f-tomorrow,#f-note',el)
+  $$('#q-walkMin,#q-sleepH,#q-waterMl,#f-wake,#f-weight,#f-waist,#f-stress,#f-oneLine,#f-did,#f-tomorrow,#f-note,#g-value,#g-method,#g-meds',el)
   .forEach(function(f){
     f.addEventListener('input',function(){
       var node=$('#save-status',el); if(node){ node.textContent='正在保存……'; node.className='save-status'; }
@@ -1172,24 +1190,11 @@ function bindToday(el,d,t){
     });
   });
 
-  var addG=$('#btn-add-glucose',el);
-  if(addG) addG.addEventListener('click',function(){
-    var v=$('#g-value',el).value.trim();
-    if(!v){ toast('请填写血糖数值'); return; }
-    collectFields(el,d);
-    var dd=ensureDay(t), timing=$('#g-timing',el).value;
-    /* 覆盖逻辑：同天同 timing 的只保留最新一条，不是追加 */
-    var existed = (dd.glucose||[]).filter(function(g){ return g.timing===timing; });
-    dd.glucose = (dd.glucose||[]).filter(function(g){ return g.timing!==timing; });
-    dd.glucose.push({
-      value:v, timing:timing,
-      method:$('#g-method',el).value.trim(), meds:$('#g-meds',el).value.trim()
-    });
-    /* 先 flushDraft 把其他正在输入的字段落盘，再 renderToday 重建 DOM */
-    flushDraft();
-    toast(existed.length ? '已覆盖今日 '+timing+'（原值 '+existed[0].value+' → '+v+'）' : '已添加 '+v+' mmol/L '+timing);
-    renderToday();
-    bindToday($('#page-today'), DB.days[todayStr()], todayStr());
+  /* g-timing 是 select change 事件，也触发自动保存 */
+  var gTiming=$('#g-timing',el);
+  if(gTiming) gTiming.addEventListener('change',function(){
+    clearTimeout(timer);
+    timer=setTimeout(function(){ if(flushDraft()) syncNumStates(el,d); },200);
   });
 
   var btnDraft=$('#btn-draft',el);
@@ -2195,7 +2200,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 35;
+var APP_VERSION = 36;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
