@@ -423,7 +423,7 @@ function renderModFeature(feature, t, d){
     html += '<div class="sleep-time-box">'
       + '<div class="sleep-time-label">🌙 入睡时间</div>'
       + renderTimeSel('asleep', d.asleepTime, asleepOff,
-          [{offset:-2,label:'前晚'},{offset:-1,label:'昨晚'},{offset:0,label:'今早'}], disMon)
+          [{offset:-1,label:'昨晚'},{offset:0,label:'今早'}], disMon)
       + '</div>';
     html += '<div class="sleep-time-box" style="margin-top:6px">'
       + '<div class="sleep-time-label">☀️ 苏醒时间</div>'
@@ -2694,7 +2694,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 53;
+var APP_VERSION = 54;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
