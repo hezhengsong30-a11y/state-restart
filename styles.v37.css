@@ -756,12 +756,21 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 .sleep-time-row{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .sleep-time-box{flex:1;background:#f9fafb;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;border:1px solid #e5e7eb}
 .sleep-time-label{font-size:10px;color:#9ca3af;font-weight:500}
-.sleep-time-box input.sleep-t{
-  width:100%;border:1px solid #e5e7eb;background:#fff;border-radius:8px;font-size:14px;font-weight:600;
-  color:#1f2937;padding:6px 10px;font-family:inherit;
+/* 入睡/苏醒 自定义 24h 时间选择器 */
+.time-sel-row{display:flex;align-items:center;gap:4px}
+.time-sel{
+  flex:1;min-width:0;height:36px;border:1px solid #d1d5db;border-radius:8px;
+  background:#fff;font-size:15px;font-weight:700;color:#1f2937;text-align:center;
+  font-family:inherit;padding:0 4px;appearance:none;
+  background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3e%3cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3e%3c/svg%3e");
+  background-repeat:no-repeat;background-position:right 6px center;padding-right:18px;
 }
-.sleep-time-box input.sleep-t:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(47,125,91,.1)}
-.sleep-time-box input.sleep-t:disabled{color:#9ca3af;background:#f9fafb}
+.time-sel:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(47,125,91,.1)}
+.time-sel:disabled{background:#f9fafb;color:#9ca3af;cursor:not-allowed}
+.time-colon{font-size:18px;font-weight:700;color:#6b7280;flex-shrink:0}
+/* min 秒选项：不要太挤 */
+.time-hh{min-width:0}
+.time-mm{min-width:0}
 .sleep-hours-line{text-align:center;font-size:12px;color:#6b7280;margin-bottom:6px}
 .sleep-hours-line b{color:var(--primary);font-size:15px;font-weight:700}
 /* 心情简化卡片 */

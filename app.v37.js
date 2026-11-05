@@ -258,6 +258,27 @@ function kcalBurnEstimate(d){
   var burn = Math.round(walkMin * 5 * 60 / 60);
   return { burn: burn, walkMin: walkMin };
 }
+/* 渲染时间选择：两个 select 并排（小时 0-23 + 分钟 00-59），纯24h制无AM/PM */
+function renderTimeSel(name, hhmm, disMon){
+  var pa = parseHM(hhmm || '');
+  var hh = pa.h != null ? pa.h : 23;
+  var mm = pa.m != null ? pa.m : 0;
+  var hOpts = '';
+  for(var hi=0; hi<24; hi++){
+    var hv = hi<10 ? '0'+hi : ''+hi;
+    hOpts += '<option value="'+hv+'"'+(hi===hh?' selected':'')+'>'+hv+'</option>';
+  }
+  var mOpts = '';
+  for(var mi=0; mi<60; mi++){
+    var mv = mi<10 ? '0'+mi : ''+mi;
+    mOpts += '<option value="'+mv+'"'+(mi===mm?' selected':'')+'>'+mv+'</option>';
+  }
+  return '<div class="time-sel-row">'
+    + '<select class="time-sel time-hh" data-tn="'+name+'"'+disMon+'>'+hOpts+'</select>'
+    + '<span class="time-colon">:</span>'
+    + '<select class="time-sel time-mm" data-tn="'+name+'"'+disMon+'>'+mOpts+'</select>'
+    + '</div>';
+}
 /* 解析时间字符串 —— 支持 "HH:MM" 和 "YYYY-MM-DDTHH:MM" 两种格式
    返回 { y, mo, d, h, m }（有日期时 y/mo/d 有值，否则 null） */
 function parseHM(s){
@@ -340,11 +361,6 @@ function hm(totalMin){
   var h=Math.floor(totalMin/60)%24, m=totalMin%60;
   return h+':'+(m<10?'0':'')+m;
 }
-function parseHM(s){
-  var m = (s||'').match(/^(\d{1,2}):(\d{2})$/);
-  if(!m) return {h:null,m:null};
-  return {h:parseInt(m[1]), m:parseInt(m[2])};
-}
 /* 推荐场景横滑（基于气郁质 + 肝酶异常） */
 var HEI_SCENES = [
   {emoji:'🌇', nm:'傍晚散步', sc:'疏肝解郁 · 气郁质首选'},
@@ -377,14 +393,14 @@ function renderModFeature(feature, t, d){
     html += '</div>';
   } else if(feature==='organ'){
     html += '<div class="feat organ-row">';
-    /* 入睡/苏醒：纯时间选择器（24小时制，微信兼容好），两行 */
+    /* 入睡/苏醒：自定义 select（纯24h制，无AM/PM），两行 */
     html += '<div class="sleep-time-box">'
-      + '<div class="sleep-time-label">🌙 入睡时间</div>'
-      + '<input type="time" step="300" class="asleep-input sleep-t"'+disMon+' value="'+esc(d.asleepTime||'')+'">'
+      + '<div class="sleep-time-label">🌙 入睡时间（前一晚）</div>'
+      + renderTimeSel('asleep', d.asleepTime, disMon)
       + '</div>';
     html += '<div class="sleep-time-box" style="margin-top:6px">'
-      + '<div class="sleep-time-label">☀️ 苏醒时间</div>'
-      + '<input type="time" step="300" class="wake-input sleep-t"'+disMon+' value="'+esc(d.wakeTime||'')+'">'
+      + '<div class="sleep-time-label">☀️ 苏醒时间（今早）</div>'
+      + renderTimeSel('wake', d.wakeTime, disMon)
       + '</div>';
     /* 睡眠小时数自动计算 */
     var shVal = computeSleepHours(d.asleepTime, d.wakeTime);
@@ -1549,15 +1565,23 @@ function bindToday(el,d,t){
     });
   });
 
-  /* 入睡/苏醒纯 time input change → 自动算睡眠小时 + 重绘脏腑 bar */
-  $$('.sleep-t',el).forEach(function(inp){
-    inp.addEventListener('change',function(){
-      if(inp.classList.contains('asleep-input')){ d.asleepTime = inp.value; }
-      else if(inp.classList.contains('wake-input')){ d.wakeTime = inp.value; }
+  /* 入睡/苏醒两个 select 变更 → 组合成 HH:MM 存 DB */
+  $$('.time-sel',el).forEach(function(sel){
+    sel.addEventListener('change',function(){
+      var tn = sel.getAttribute('data-tn');
+      var box = sel.closest('.sleep-time-box');
+      if(!box) return;
+      var hhSel = box.querySelector('.time-hh');
+      var mmSel = box.querySelector('.time-mm');
+      var hh = hhSel ? hhSel.value : '23';
+      var mm = mmSel ? mmSel.value : '00';
+      var hhmm = hh + ':' + mm;
+      if(tn === 'asleep'){ d.asleepTime = hhmm; }
+      else if(tn === 'wake'){ d.wakeTime = hhmm; }
       var sh = computeSleepHours(d.asleepTime, d.wakeTime);
       d.sleepH = sh!=null ? String(sh) : '';
       flushDraft();
-      var row = inp.closest('.organ-row');
+      var row = sel.closest('.organ-row');
       if(row){
         var newBar = organBarHtml(d.asleepTime, d.wakeTime);
         var oldBar = row.querySelector('.sleep-bar');
@@ -2638,7 +2662,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 51;
+var APP_VERSION = 52;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
