@@ -307,7 +307,7 @@ function organBarHtml(asleep, wake){
   html += '<div class="sleep-labels"><span>'+(asleep||'23:00')+' 入睡</span><span>23-1 胆</span><span>1-3 肝</span><span>3-5 肺</span><span>5-7 肠</span><span>'+(wake||'07:00')+' 醒</span></div>';
   /* 参与的脏腑时间段小字提示 */
   if(coveredZang.length){
-    html += '<div class="sleep-zang-info" style="font-size:11px;color:#6b7280;margin-top:6px;line-height:1.5">今晚覆盖 '+coveredZang.join(' · ')</div>';
+    html += '<div class="sleep-zang-info" style="font-size:11px;color:#6b7280;margin-top:6px;line-height:1.5">今晚覆盖 ' + coveredZang.join(' | ') + '</div>';
   }
   return html;
 }
@@ -2610,7 +2610,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 44;
+var APP_VERSION = 44b;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
