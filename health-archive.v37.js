@@ -455,34 +455,98 @@ function renderOverview(){
   var c = A.currentCycle();
   var idx = A.dayIndex(A.todayStr());
   var tot = A.cycleTotal();
-  var focusIssue = A.DB.issues.find(function(i){ return i.focus && !i.archived; });
+  var allIssues = A.DB.issues.filter(function(i){ return !i.archived; });
   var b = A.DB.baseline || {};
   var cons = b.constitution || {};
+
+  /* 四模块映射：把未归档 issues 按模块分组 */
+  var MOD_MAP = {
+    'diet':     { emoji:'🍱', title:'饮食 · 管住嘴', kw:['ALT','GGT','肝酶','脂肪肝','胆囊','血糖高|糖|甜','酒|烟','肝功能'] },
+    'exercise': { emoji:'🏃', title:'运动 · 迈开腿', kw:['体重','BMI','肥胖','腰围','腰','运动','步行'] },
+    'sleep':    { emoji:'😴', title:'睡眠 · 养气血', kw:['睡眠','作息','熬夜','入睡','失眠'] },
+    'tcm':      { emoji:'🌿', title:'调理 · 中医扶正', kw:['中医','经络','体质','气郁','穴位','针灸','艾灸','养生操'] },
+    'monitor':  { emoji:'📊', title:'监测 · 持续观察', kw:['血糖','糖化','空腹','血压','血脂','总胆','甘油三酯','LDL','肾功能','双肾','肌酐'] },
+    'other':    { emoji:'📋', title:'其他异常', kw:['口腔','骨质增生','宫颈','息肉'] }
+  };
+  var modBuckets = {};
+  allIssues.forEach(function(iss){
+    var text = (iss.name||'') + ' ' + (iss.description||'');
+    var found = null;
+    for(var mk in MOD_MAP){
+      var patterns = MOD_MAP[mk].kw.map(function(k){ return new RegExp(k,'i'); });
+      if(patterns.some(function(re){ return re.test(text); })){ found = mk; break; }
+    }
+    modBuckets[found||'other'] = modBuckets[found||'other'] || [];
+    modBuckets[found||'other'].push(iss);
+  });
+
   var html='';
   html += '<div class="card archive-overview">';
   html += '<div class="card-title">本轮概况 <span class="sub">'+A.cycleLabel()+'</span></div>';
   html += '<div class="ao-row"><div><span class="ao-label">当前周期</span><div class="ao-val">'+A.cycleLabel()+'</div></div>';
   html += '<div><span class="ao-label">第几天</span><div class="ao-val">'+(idx>=1 && idx<=tot?('第 '+idx+' 天 / '+tot+' 天'):idx<1?'尚未开始':'已完成')+'</div></div>';
-  html += '<div><span class="ao-label">重点问题</span><div class="ao-val">'+(focusIssue?A.esc(focusIssue.name):'<span class="muted">未设置</span>')+'</div></div>';
-  html += '<div><span class="ao-label">下次复盘</span><div class="ao-val">'+(c.reviewDate?A.dateLabel(c.reviewDate):'<span class="muted">待设置</span>')+'</div></div>';
   html += '<div><span class="ao-label">中医体质</span><div class="ao-val">'+(cons.value?A.esc(cons.value):'<span class="muted">未记录</span>')+'</div>'
     + (cons.date||cons.note?'<div class="ao-item-kws">'+(cons.date?A.dateLabel(cons.date):'')+(cons.note?(cons.date?' · ':'')+A.esc(cons.note):'')+'</div>':'')
-    + (function(){
-        var due = A.constReviewDue ? A.constReviewDue(cons) : '';
-        if(!due) return '';
-        var today = A.todayStr();
-        if(today >= due){
-          var days = Math.round((A.parseD(today)-A.parseD(due))/86400000);
-          return '<div class="ao-due">复评已到期'+(days>0?'（超 '+days+' 天）':'')+' · 建议在本周内复评</div>';
-        }
-        return '<div class="ao-item-kws">下次复评约 '+A.dateLabel(due)+'</div>';
-      })()
     + '</div>';
   html += '</div>';
   html += '<div class="chart-note" style="margin-top:8px">本轮关注重点的变化，不要求所有问题在一个周期内解决。</div>';
   html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
   html += '<button class="btn small ghost" id="btn-cycle-change">调整周期</button>';
   html += '<button class="btn small ghost" id="btn-view-history">查看历史周期</button>';
+  html += '</div>';
+  html += '</div>';
+
+  /* 四模块 issue 分组速览 */
+  var focus = A.DB.issues.filter(function(i){ return i.focus && !i.archived; });
+  html += '<div class="card archive-mod-viz">';
+  html += '<div class="card-title">问题按模块分布 <span class="sub">当前重点：'+(focus.length?focus.map(function(f){return A.esc(f.name);}).join(' · '):'<span class="muted">未设置</span>')+'</span></div>';
+  for(var mk in MOD_MAP){
+    var bucket = modBuckets[mk] || [];
+    var info = MOD_MAP[mk];
+    if(bucket.length===0 && mk!=='other') continue; /* 空模块（除 other）不显示 */
+    html += '<div class="amv-row">';
+    html += '<div class="amv-label"><span class="amv-em">'+info.emoji+'</span>'+info.title+' <span class="amv-count">'+bucket.length+' 项</span></div>';
+    html += '<div class="amv-tags">';
+    bucket.forEach(function(iss){
+      var dot = iss.focus?'<b class="focus-tag">★</b>':'';
+      html += '<span class="amv-tag'+(iss.focus?' amv-focus':'')+'">'+dot+A.esc(iss.name)+'</span>';
+    });
+    html += '</div></div>';
+  }
+  html += '</div>';
+
+  /* 调理历史（针灸/艾灸/按摩打卡次数，来自 DB.weeks 和 DB.days 的 acupoint/moxa 字段） */
+  html += renderTCMHistory();
+
+  return html;
+}
+/* 调理历史：四模块里的🌿调理 专属区块 */
+function renderTCMHistory(){
+  var html = '<div class="card archive-mod-viz" id="archive-tcm-hist">';
+  html += '<div class="card-title">🌿 调理历史 <span class="sub">可选扩展字段，未填不影响打卡</span></div>';
+  var dates=Object.keys(A.DB.days).filter(function(ds){ var i=A.dayIndex(ds); return i>=1&&i<=A.TOTAL; }).sort();
+  var acupY=0, moxaY=0, otherTCM=[];
+  var tcmDates = [];
+  dates.forEach(function(ds){
+    var d = A.DB.days[ds];
+    if(d.acupoint===true){ acupY++; tcmDates.push({ds:ds,kind:'acupoint'}); }
+    if(d.moxa===true){ moxaY++; tcmDates.push({ds:ds,kind:'moxa'}); }
+  });
+  var images = A.DB.images || [];
+  var reportImgs = images.filter(function(im){ return im.kind==='report'; });
+  html += '<div class="amv-row">';
+  html += '<div class="amv-label"><span class="amv-em">💆</span>穴位按摩 <span class="amv-count">'+acupY+' 次</span></div></div>';
+  html += '<div class="amv-row">';
+  html += '<div class="amv-label"><span class="amv-em">🔥</span>艾灸 <span class="amv-count">'+moxaY+' 次</span></div></div>';
+  html += '<div class="amv-row">';
+  html += '<div class="amv-label"><span class="amv-em">📋</span>已上传报告 <span class="amv-count">'+reportImgs.length+' 张</span></div>';
+  if(reportImgs.length>0){
+    html += '<div class="amv-tags">';
+    reportImgs.slice(-5).forEach(function(im){
+      html += '<span class="amv-tag"><img src="'+im.dataUrl+'" style="width:36px;height:36px;border-radius:6px;object-fit:cover;margin-right:4px" title="'+(im.date||'')+'">'+(im.date||'')+'</span>';
+    });
+    html += '</div>';
+  }
   html += '</div>';
   html += '</div>';
   return html;

@@ -1556,11 +1556,14 @@ function renderPlan(){
     var rec=DB.days[dateStr];
     var state = dateStr>t ? '未开始' : (isSubmitted(rec)?'已打卡' : (dayHasContent(rec)?'已有草稿':'待记录'));
     var cls='plan-item'+(isSubmitted(rec)?' done':'')+((i+1)===todayIdx?' today':'')+(p.review?' review':'')+' editable';
+    /* 四模块 emoji 速览：根据 PLAN[i] 里的 focus 文本和 p 的 walking 推断 */
+    var gMod = planModuleGlyphs(p);
     html += '<div class="'+cls+'" data-goto-date="'+dateStr+'"><div class="d">'+(i+1)+'</div><div class="info">'
       + '<div class="focus">'+esc(p.focus)+'</div>'
       + '<div class="meta">'+dateLabel(dateStr)+' · <span class="walk">步行：'+esc(p.walk)+'</span>'
       + (p.weigh?' · ⚖️称重／腰围':'') + (p.review?' · 📋复盘':'')
       + '</div>'
+      + '<div class="plan-modules">'+gMod+'</div>'
       + '<div class="plan-state"><span class="chip-state s-'+stateCls(state)+'">'+state+'</span>'
       + (isSubmitted(rec)&&rec.submitTime?'<span class="chip-time">保存于 '+esc(rec.submitTime)+'</span>':'')
       + '</div>'
@@ -1575,6 +1578,19 @@ function renderPlan(){
     });
   });
 }
+/* 根据当天 PLAN 的 focus 文本推断四模块覆盖，输出 emoji 速览 */
+function planModuleGlyphs(p){
+  if(!p) return '';
+  var g='';
+  var f=(p.focus||'')+(p.walk||'');
+  if(/饮食|餐|酒|甜|烟|抽烟/.test(f)) g+='🍱';
+  if(/步行|运动|走|跑步|快走|拉伸/.test(f)) g+='🏃';
+  if(/睡眠|早睡|作息|睡/.test(f)) g+='😴';
+  if(/调理|针灸|按摩|太冲|气海|艾灸|养生操|八段锦/.test(f)) g+='🌿';
+  /* 称重/腰围/血糖 属于监测，额外加一个 📊 */
+  if(/称重|腰围|血糖|体重/.test(f) || p.weigh) g+='📊';
+  return g;
+}
 function stateCls(s){
   return s==='已打卡'?'done':(s==='已有草稿'?'draft':(s==='未开始'?'future':'todo'));
 }
@@ -1586,6 +1602,9 @@ function renderTrend(){
   var dates=Object.keys(DB.days).filter(function(ds){ var i=dayIndex(ds); return i>=1&&i<=TOTAL; }).sort();
 
   var walkSum=0,walkN=0,sleepSum=0,sleepN=0,waterN=0,waterSum=0;
+  var smokeY=0,smokeN=0,alcoY=0,alcoN=0,dietY=0,dietN=0;
+  var acupY=0,acupN=0,moxaY=0,moxaN=0;
+  var aslepN=0, aslepSum=0;
   var weights=[],waists=[];
   var gSeries={};
   G_TIMINGS.forEach(function(x){ gSeries[x]=[]; });
@@ -1597,6 +1616,18 @@ function renderTrend(){
     if(hasNum(d.waterMl)){ waterSum+=num(d.waterMl); waterN++; }
     if(hasNum(d.weight)) weights.push({x:ds,y:num(d.weight)});
     if(hasNum(d.waist)) waists.push({x:ds,y:num(d.waist)});
+    /* 戒烟/饮酒/饮食规律 按 yes/no 计数（其他不计） */
+    if(d.noSmoke===true) smokeY++; else if(d.noSmoke===false) smokeN++;
+    if(d.noAlcoholSweet===true) alcoY++; else if(d.noAlcoholSweet===false) alcoN++;
+    if(d.dietOk===true) dietY++; else if(d.dietOk===false) dietN++;
+    /* 调理（可选扩展字段，不填不计） */
+    if(d.acupoint===true) acupY++; else if(d.acupoint===false) acupN++;
+    if(d.moxa===true) moxaY++; else if(d.moxa===false) moxaN++;
+    /* 入睡时间（小时数用于平均） */
+    if(d.asleepTime){
+      var hm=parseHM(d.asleepTime);
+      if(hm.h!=null){ aslepSum += hm.h+hm.m/60; aslepN++; }
+    }
     (d.glucose||[]).forEach(function(g){
       var v=num(g.value); if(v==null) return;
       var tm = G_TIMINGS.indexOf(g.timing)>=0 ? g.timing : '随机';
@@ -1629,17 +1660,54 @@ function renderTrend(){
   var bw = num(DB.baseline.weight.value);
   var wDelta = (lastW!=null && bw!=null) ? (lastW - bw) : null;
 
+  /* 四模块分组统计 */
+  var kcalBurnAvg = walkN ? Math.round((walkSum/walkN) * 5 * 60 / 60) : null;
+
   var html='';
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">🍱 饮食 · 管住嘴</div>';
+  html += '<div class="stat-grid">'
+    + statCell(dietY,'饮食规律 天数',dates.length?('已记录 '+dietY+'/'+(dietY+dietN)):'待开始')
+    + statCell(alcoY,'无酒无甜饮 天数',dates.length?('已记录 '+alcoY+'/'+(alcoY+alcoN)):'待开始')
+    + statCell(smokeY,'不吸烟 天数',dates.length?('已记录 '+smokeY+'/'+(smokeY+smokeN)):'待开始')
+    + statCell(waterN?Math.round(waterSum/waterN):'记录积累中','日均饮水 毫升',waterN?('基于 '+waterN+' 天记录'):'暂无记录')
+    + '</div>';
+  html += '</div>';
+
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">🏃 运动 · 迈开腿</div>';
+  html += '<div class="stat-grid">'
+    + statCell(walkSum,'累计步行 分钟',walkN?('基于 '+walkN+' 天'):'暂无记录')
+    + statCell(walkN?Math.round(walkSum/walkN):'记录积累中','日均步行 分钟',walkN?('基于 '+walkN+' 天'):'暂无记录')
+    + statCell(kcalBurnAvg!=null?kcalBurnAvg:'记录积累中','日均预估消耗 kcal',kcalBurnAvg!=null?('基于步行 MET 估算'):'暂无记录')
+    + '</div>';
+  html += '</div>';
+
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">😴 睡眠 · 养气血</div>';
+  html += '<div class="stat-grid">'
+    + statCell(sleepN?(sleepSum/sleepN).toFixed(1):'记录积累中','日均睡眠 小时',sleepN?('基于 '+sleepN+' 天记录'):'暂无记录')
+    + statCell(aslepN?(aslepSum/aslepN).toFixed(1)+' h':'记录积累中','平均入睡 小时',aslepN?('基于 '+aslepN+' 天记录'):'暂无记录')
+    + '</div>';
+  html += '</div>';
+
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">🌿 调理 · 中医扶正</div>';
+  html += '<div class="stat-grid">'
+    + statCell(acupY||'—','穴位按摩 次数',(acupY+acupN)?('已记录 '+acupY+'/'+(acupY+acupN)):'可选扩展，未填不影响打卡')
+    + statCell(moxaY||'—','艾灸 次数',(moxaY+moxaN)?('已记录 '+moxaY+'/'+(moxaY+moxaN)):'可选扩展')
+    + '</div>';
+  html += '</div>';
+
+  html += '<div class="stat-group">';
+  html += '<div class="stat-group-title">📊 周期进度</div>';
   html += '<div class="stat-grid">'
     + statCell(weekSubmittedDays(currentWeek()),'本周已打卡 天','第 '+currentWeek()+' 周')
     + statCell(submittedDates().length,'累计已打卡 天','提交记录的唯一天数')
-    + statCell(modeFullDays(),'当日模式目标完成天','见下方统计口径')
-    + statCell(walkN?Math.round(walkSum/walkN):'记录积累中','日均步行 分钟',walkN?('基于 '+walkN+' 天记录'):'暂无记录')
-    + statCell(sleepN?(sleepSum/sleepN).toFixed(1):'记录积累中','日均睡眠 小时',sleepN?('基于 '+sleepN+' 天记录'):'暂无记录')
-    + statCell(waterN?Math.round(waterSum/waterN):'记录积累中','日均饮水 毫升',waterN?('基于 '+waterN+' 天记录'):'暂无记录')
     + statCell(streak(),'连续打卡 天','次要指标')
     + statCell(wDelta!=null?((wDelta>0?'+':'')+wDelta.toFixed(1)):'记录积累中','较基线体重 kg',(wDelta!=null&&bw!=null)?('基线 '+bw+' kg'):'待称重')
     + '</div>';
+  html += '</div>';
 
   html += '<div class="notice" style="margin-bottom:12px">统计口径：<b>「已打卡」只表示提交了记录，不等于全部行动完成。</b>'
     + '数字类项目（步行／睡眠／饮水）以实际数值计入，不自动判断达标；未记录的项目不按 0 计算。'
