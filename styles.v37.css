@@ -753,10 +753,25 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 .mc-num-val{font-size:18px;font-weight:700;color:#1f2937;line-height:1}
 .mod-cell.done .mc-num-val{color:#065f46}
 .sleep-labels{display:flex;font-size:9px;color:#9ca3af;margin-top:3px;justify-content:space-between}
-/* 脏腑功能描述列表 */
 .sleep-zang-list{margin-top:8px;border-top:1px dashed #e5e7eb;padding-top:6px}
 .sleep-zang-item{font-size:11px;color:#4b5563;line-height:1.6;padding:2px 0}
 .sleep-zang-item b{color:#1f2937;font-weight:600}
+/* 入睡/苏醒 datetime-local 输入 */
+.sleep-time-row{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.sleep-time-box{flex:1;background:#f9fafb;border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;border:1px solid #e5e7eb}
+.sleep-time-label{font-size:10px;color:#9ca3af;font-weight:500}
+.sleep-time-box input.sleep-dt{
+  width:100%;border:none;background:transparent;font-size:13px;font-weight:600;color:#1f2937;
+  padding:0;font-family:inherit;
+}
+.sleep-time-box input.sleep-dt:focus{outline:none;color:var(--primary)}
+.sleep-time-box input.sleep-dt:disabled{color:#9ca3af}
+.sleep-arrow{font-size:18px;color:#d1d5db;font-weight:300}
+.sleep-hours-line{text-align:center;font-size:12px;color:#6b7280;margin-bottom:6px}
+.sleep-hours-line b{color:var(--primary);font-size:15px;font-weight:700}
+/* 心情简化卡片 */
+.mood-simple{padding:12px 14px}
+.mood-simple .card-title{margin-bottom:8px}
 
 /* 横滑推荐场景 */
 .hei-wrap{margin-top:8px}

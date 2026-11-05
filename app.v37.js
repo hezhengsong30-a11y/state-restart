@@ -258,11 +258,33 @@ function kcalBurnEstimate(d){
   var burn = Math.round(walkMin * 5 * 60 / 60);
   return { burn: burn, walkMin: walkMin };
 }
-/* 根据入睡/苏醒时间自动算睡眠小时数（跨天也算对） */
+/* 解析时间字符串 —— 支持 "HH:MM" 和 "YYYY-MM-DDTHH:MM" 两种格式
+   返回 { y, mo, d, h, m }（有日期时 y/mo/d 有值，否则 null） */
+function parseHM(s){
+  if(!s) return {h:null,m:null,y:null,mo:null,d:null};
+  s = String(s).trim();
+  var dtMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{1,2})/);
+  if(dtMatch){
+    return { y:+dtMatch[1], mo:+dtMatch[2], d:+dtMatch[3], h:+dtMatch[4], m:+dtMatch[5] };
+  }
+  var hmMatch = s.match(/^(\d{1,2}):(\d{1,2})/);
+  if(hmMatch){ return { h:+hmMatch[1], m:+hmMatch[2], y:null, mo:null, d:null }; }
+  return {h:null,m:null,y:null,mo:null,d:null};
+}
+/* 根据入睡/苏醒时间自动算睡眠小时数（支持跨天、支持 datetime-local 精确日期） */
 function computeSleepHours(asleep, wake){
   var as = parseHM(asleep), wk = parseHM(wake);
   if(as.h==null || wk.h==null) return null;
-  var span = ((wk.h*60+wk.m) - (as.h*60+as.m) + 24*60) % (24*60);
+  var span;
+  if(as.y != null && wk.y != null){
+    /* 有完整日期 → 用绝对分钟差 */
+    var aMs = new Date(as.y, as.mo-1, as.d, as.h, as.m).getTime();
+    var wMs = new Date(wk.y, wk.mo-1, wk.d, wk.h, wk.m).getTime();
+    span = (wMs - aMs) / 60000;
+  } else {
+    /* 只有时间 → 按跨天算（默认苏醒是入睡之后的下一次出现） */
+    span = ((wk.h*60+wk.m) - (as.h*60+as.m) + 24*60) % (24*60);
+  }
   if(span<=0 || span>12*60) return null;
   return +(span/60).toFixed(1);
 }
@@ -349,17 +371,22 @@ function renderModFeature(feature, t, d){
     html += '</div>';
   } else if(feature==='organ'){
     html += '<div class="feat organ-row">';
+    /* 入睡时间：datetime-local（通常是前一天晚上） */
     html += '<div class="sleep-time-row">'
-      + '<div style="text-align:center;flex:1;background:#f9fafb;border-radius:8px;padding:6px 4px">'
-      + '<div style="font-size:10px;color:#9ca3af">入睡</div>'
-      + '<input type="time" class="asleep-input" style="font-size:15px;font-weight:700;border:none;background:transparent;width:64px;text-align:center" value="'+esc(d.asleepTime||'')+'">'
+      + '<div class="sleep-time-box">'
+      + '<div class="sleep-time-label">🌙 入睡时间</div>'
+      + '<input type="datetime-local" class="asleep-input sleep-dt"'+disMon+' value="'+esc(d.asleepDt||'')+'">'
       + '</div>'
-      + '<div style="font-size:16px;color:#9ca3af;padding:0 4px">→</div>'
-      + '<div style="text-align:center;flex:1;background:#f9fafb;border-radius:8px;padding:6px 4px">'
-      + '<div style="font-size:10px;color:#9ca3af">苏醒</div>'
-      + '<div style="font-size:15px;font-weight:700;color:#1f2937">'+esc(d.wakeTime||'—')+'</div>'
+      + '<div class="sleep-arrow">→</div>'
+      + '<div class="sleep-time-box">'
+      + '<div class="sleep-time-label">☀️ 苏醒时间</div>'
+      + '<input type="datetime-local" class="wake-input sleep-dt"'+disMon+' value="'+esc(d.wakeDt||'')+'">'
       + '</div></div>';
-    html += organBarHtml(d.asleepTime, d.wakeTime);
+    /* 中间显示睡眠小时数（自动计算） */
+    html += '<div class="sleep-hours-line">睡眠 <b id="sleep-hours-live">'+(computeSleepHours(d.asleepDt||d.asleepTime, d.wakeDt||d.wakeTime)||'—')+'</b> 小时</div>';
+    /* 底部：脏腑时段进度条 */
+    html += '<div class="sleep-zang-topic" style="font-size:11px;color:#9ca3af;margin-top:4px">🌿 今晚脏腑排毒时段</div>';
+    html += organBarHtml(d.asleepDt||d.asleepTime, d.wakeDt||d.wakeTime);
     html += '</div>';
   } else if(feature==='scene'){
     html += '<div class="feat hei-wrap"><div class="hei-title">🎯 今日推荐场景</div>'
@@ -846,6 +873,11 @@ function renderToday(){
     : (idx<1 ? {focus:'计划尚未开始（10月20日开始）', walk:''}
     : {focus:'30天计划已结束，继续保持已养成的习惯', walk:'舒适步行'});
   var d = getDay(t);
+  /* v47 旧数据迁移：如果有旧 HH:MM 格式的 asleepTime/wakeTime 但没新的 asleepDt/wakeDt，自动转 */
+  if(!d.asleepDt && d.asleepTime){ d.asleepDt = t + 'T' + d.asleepTime; }
+  if(!d.wakeDt && d.wakeTime){ d.wakeDt = t + 'T' + d.wakeTime; }
+  if(!d.asleepDt){ d.asleepDt = t + 'T23:00'; } /* 默认值让 input 不空 */
+  if(!d.wakeDt){ d.wakeDt = t + 'T07:00'; }
   /* 收集所有历史空腹血糖（跨日期）用于今日页一览 */
   var histFasting=[];
   Object.keys(DB.days).sort().forEach(function(ds){
@@ -1136,24 +1168,15 @@ function renderToday(){
   }
   html += '</details>';
 
-  /* 6. 心情记录（默认折叠） */
-  html += '<details class="fold card" id="fold-mood"'+(uiState.mood?' open':'')+'><summary>心情记录'
-    + '<span class="fold-sub">'+(hasNum(d.stress)?('压力 '+esc(d.stress)+'/10'):'默认折叠，可不填')+'</span></summary>';
-  html += '<div class="field"><label>今日压力（0-10，可不填）</label><input type="number" min="0" max="10"'+disMon+' id="f-stress" value="'+esc(d.stress)+'" placeholder="例如 6"></div>';
-  /* 情绪状态：气郁质追踪用，可选 */
-  html += '<div class="field"><label>情绪状态（可选）</label><div class="chip-row" id="mood-row">'
-    + ['low','neutral','good'].map(function(m){
+  /* 6. 心情记录：只留情绪状态 chip，简洁一行 */
+  html += '<div class="card mood-simple">'
+    + '<div class="card-title">心情 <span class="sub">'+(d.mood?MOOD_TEXT[d.mood]:'点击选择')+'</span></div>'
+    + '<div class="chip-row" id="mood-row">'
+    +   ['low','neutral','good'].map(function(m){
         var on = d.mood===m;
         return '<button type="button" class="chip'+(on?' on':'')+'" data-mood="'+m+'">'+MOOD_TEXT[m]+'</button>';
       }).join('')
     + '</div></div>';
-  html += '<div class="field"><label>一句话记录（可不填）</label><textarea'+disMon+' id="f-oneLine" placeholder="例如：今天有点累，但把午饭吃踏实了">'+esc(d.oneLine)+'</textarea></div>';
-  html += '<details class="fold" id="fold-moodmore"'+(uiState.moodMore?' open':'')+'><summary>更多记录</summary>'
-    + '<div class="field"><label>今天我做到了</label><textarea'+disMon+' id="f-did" placeholder="一两句话">'+esc(d.did)+'</textarea></div>'
-    + '<div class="field"><label>明天最重要的一件事</label><textarea'+disMon+' id="f-tomorrow" placeholder="一句话">'+esc(d.tomorrow)+'</textarea></div>'
-    + '<div class="field"><label>备注／复盘</label><textarea'+disMon+' id="f-note" placeholder="复盘日写在这里">'+esc(d.note)+'</textarea></div>'
-    + '</details>';
-  html += '</details>';
 
   /* 7. 保存状态与提交按钮 */
   html += '<div class="save-area">';
@@ -1521,22 +1544,32 @@ function bindToday(el,d,t){
     });
   });
 
-  /* 入睡时间自动保存 + 自动算睡眠小时数 */
-  var asleepInput=$$('.asleep-input',el);
-  if(asleepInput.length) asleepInput.forEach(function(ip){
-    ip.addEventListener('change',function(){
-      d.asleepTime=ip.value;
-      /* 自动算 sleepH（两个时间任一变化都算） */
-      var sh = computeSleepHours(d.asleepTime, d.wakeTime);
+  /* 入睡/苏醒 datetime-local change → 自动算睡眠小时 + 重绘脏腑 bar */
+  $$('.sleep-dt',el).forEach(function(inp){
+    inp.addEventListener('change',function(){
+      if(inp.classList.contains('asleep-input')){
+        d.asleepDt = inp.value;
+        /* 兼容旧字段：从 datetime-local 提取 HH:MM */
+        var hm = parseHM(inp.value);
+        d.asleepTime = hm.h!=null ? hm.h+':'+(hm.m<10?'0':'')+hm.m : '';
+      } else if(inp.classList.contains('wake-input')){
+        d.wakeDt = inp.value;
+        var hm2 = parseHM(inp.value);
+        d.wakeTime = hm2.h!=null ? hm2.h+':'+(hm2.m<10?'0':'')+hm2.m : '';
+      }
+      var asVal = d.asleepDt || d.asleepTime;
+      var wkVal = d.wakeDt || d.wakeTime;
+      var sh = computeSleepHours(asVal, wkVal);
       d.sleepH = sh!=null ? String(sh) : '';
       flushDraft();
-      /* 重新渲染脏腑时段 bar（只更新 sleep feature 区） */
-      var featRow = ip.closest('.organ-row');
-      if(featRow){
-        var newBar = organBarHtml(d.asleepTime, d.wakeTime);
-        var oldBar = featRow.querySelector('.sleep-bar');
+      /* 重绘脏腑 bar + 睡眠小时数显示 */
+      var row = inp.closest('.organ-row');
+      if(row){
+        var newBar = organBarHtml(asVal, wkVal);
+        var oldBar = row.querySelector('.sleep-bar');
         if(oldBar){ oldBar.outerHTML = newBar; }
-        else { featRow.insertAdjacentHTML('beforeend', newBar); }
+        var shLive = row.querySelector('#sleep-hours-live');
+        if(shLive){ shLive.textContent = sh!=null ? sh : '—'; }
       }
     });
   });
@@ -2611,7 +2644,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 46;
+var APP_VERSION = 47;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
