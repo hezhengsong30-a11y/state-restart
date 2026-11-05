@@ -1258,16 +1258,19 @@ function collectFields(el,d){
      （不再依赖独立"保存血糖"按钮，随保存修改/提交打卡一起落盘） */
   var gv = $('#g-value',el);
   if(gv){
+    var timingEl = $('#g-timing',el);
+    var methodEl = $('#g-method',el);
+    var medsEl = $('#g-meds',el);
     var val = gv.value.trim();
-    var timing = $('#g-timing',el).value;
+    var timing = timingEl ? timingEl.value : '空腹';
     if(val){
       d.glucose = d.glucose || [];
       d.glucose = d.glucose.filter(function(g){ return g.timing !== timing; });
       d.glucose.push({
         value: val,
         timing: timing,
-        method: $('#g-method',el).value.trim(),
-        meds: $('#g-meds',el).value.trim()
+        method: methodEl ? methodEl.value.trim() : '',
+        meds: medsEl ? medsEl.value.trim() : ''
       });
     }
   }
@@ -1287,6 +1290,9 @@ function bindFolds(el){
 
 function bindToday(el,d,t){
   var today=todayStr(), future=(t>today);
+  var submitted = isSubmitted(t), editing = uiState.tips[t]===true;
+  var locked = future || (t===today && submitted && !editing);
+  var viewing = t;
   function flushDraft(){
     collectFields(el,d);
     d.draftSavedAt=hhmm(new Date());
@@ -2544,7 +2550,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 40;
+var APP_VERSION = 41;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
