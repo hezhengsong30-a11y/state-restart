@@ -377,21 +377,21 @@ function renderModFeature(feature, t, d){
     html += '</div>';
   } else if(feature==='organ'){
     html += '<div class="feat organ-row">';
-    /* 入睡/苏醒：两行，每行一个 datetime-local */
+    /* 入睡/苏醒：纯时间选择器（24小时制，微信兼容好），两行 */
     html += '<div class="sleep-time-box">'
-      + '<div class="sleep-time-label">🌙 入睡（前一晚）</div>'
-      + '<input type="datetime-local" class="asleep-input sleep-dt"'+disMon+' value="'+esc(d.asleepDt||'')+'">'
+      + '<div class="sleep-time-label">🌙 入睡时间</div>'
+      + '<input type="time" step="300" class="asleep-input sleep-t"'+disMon+' value="'+esc(d.asleepTime||'')+'">'
       + '</div>';
     html += '<div class="sleep-time-box" style="margin-top:6px">'
-      + '<div class="sleep-time-label">☀️ 今早苏醒</div>'
-      + '<input type="datetime-local" class="wake-input sleep-dt"'+disMon+' value="'+esc(d.wakeDt||'')+'">'
+      + '<div class="sleep-time-label">☀️ 苏醒时间</div>'
+      + '<input type="time" step="300" class="wake-input sleep-t"'+disMon+' value="'+esc(d.wakeTime||'')+'">'
       + '</div>';
     /* 睡眠小时数自动计算 */
-    var shVal = computeSleepHours(d.asleepDt||d.asleepTime, d.wakeDt||d.wakeTime);
+    var shVal = computeSleepHours(d.asleepTime, d.wakeTime);
     html += '<div class="sleep-hours-line">睡眠 <b id="sleep-hours-live">'+(shVal!=null?shVal:'—')+'</b> 小时</div>';
-    /* 每晚脏腑排毒时段（标题改了） */
+    /* 每晚脏腑排毒时段 */
     html += '<div class="sleep-zang-topic">🌿 每晚脏腑排毒时段</div>';
-    html += organBarHtml(d.asleepDt||d.asleepTime, d.wakeDt||d.wakeTime);
+    html += organBarHtml(d.asleepTime, d.wakeTime);
     html += '</div>';
   } else if(feature==='scene'){
     html += '<div class="feat hei-wrap"><div class="hei-title">🎯 今日推荐场景</div>'
@@ -878,23 +878,10 @@ function renderToday(){
     : (idx<1 ? {focus:'计划尚未开始（10月20日开始）', walk:''}
     : {focus:'30天计划已结束，继续保持已养成的习惯', walk:'舒适步行'});
   var d = getDay(t);
-  /* v47 旧数据迁移 + v49 强制修正同日期错误 */
-  var yday = addDays(t, -1);
+  /* v51 简化：只保证纯时间字段有默认值（微信 type="time" 完美支持 24h） */
   var needFix = false;
-  if(!d.asleepDt && d.asleepTime){ d.asleepDt = yday + 'T' + d.asleepTime; needFix=true; }
-  if(!d.wakeDt && d.wakeTime){ d.wakeDt = t + 'T' + d.wakeTime; needFix=true; }
-  /* v49 兜底：如果同日期（之前错误迁移或用户手动选了同一日期），把 asleepDt 修正为前一天 */
-  if(d.asleepDt && d.wakeDt){
-    var pa = parseHM(d.asleepDt), pw = parseHM(d.wakeDt);
-    if(pa.y && pw.y && pa.y===pw.y && pa.mo===pw.mo && pa.d===pw.d){
-      /* 同日期 → 把 asleepDt 的日期往前推一天 */
-      var newDate = addDays(d.asleepDt.slice(0,10), -1);
-      d.asleepDt = newDate + 'T' + d.asleepDt.slice(11);
-      needFix = true;
-    }
-  }
-  if(!d.asleepDt){ d.asleepDt = yday + 'T23:00'; needFix=true; }
-  if(!d.wakeDt){ d.wakeDt = t + 'T07:00'; needFix=true; }
+  if(!d.asleepTime){ d.asleepTime = '23:00'; needFix = true; }
+  if(!d.wakeTime){ d.wakeTime = '07:00'; needFix = true; }
   if(needFix){ save(); }
   /* 收集所有历史空腹血糖（跨日期）用于今日页一览 */
   var histFasting=[];
@@ -1562,28 +1549,17 @@ function bindToday(el,d,t){
     });
   });
 
-  /* 入睡/苏醒 datetime-local change → 自动算睡眠小时 + 重绘脏腑 bar */
-  $$('.sleep-dt',el).forEach(function(inp){
+  /* 入睡/苏醒纯 time input change → 自动算睡眠小时 + 重绘脏腑 bar */
+  $$('.sleep-t',el).forEach(function(inp){
     inp.addEventListener('change',function(){
-      if(inp.classList.contains('asleep-input')){
-        d.asleepDt = inp.value;
-        /* 兼容旧字段：从 datetime-local 提取 HH:MM */
-        var hm = parseHM(inp.value);
-        d.asleepTime = hm.h!=null ? hm.h+':'+(hm.m<10?'0':'')+hm.m : '';
-      } else if(inp.classList.contains('wake-input')){
-        d.wakeDt = inp.value;
-        var hm2 = parseHM(inp.value);
-        d.wakeTime = hm2.h!=null ? hm2.h+':'+(hm2.m<10?'0':'')+hm2.m : '';
-      }
-      var asVal = d.asleepDt || d.asleepTime;
-      var wkVal = d.wakeDt || d.wakeTime;
-      var sh = computeSleepHours(asVal, wkVal);
+      if(inp.classList.contains('asleep-input')){ d.asleepTime = inp.value; }
+      else if(inp.classList.contains('wake-input')){ d.wakeTime = inp.value; }
+      var sh = computeSleepHours(d.asleepTime, d.wakeTime);
       d.sleepH = sh!=null ? String(sh) : '';
       flushDraft();
-      /* 重绘脏腑 bar + 睡眠小时数显示 */
       var row = inp.closest('.organ-row');
       if(row){
-        var newBar = organBarHtml(asVal, wkVal);
+        var newBar = organBarHtml(d.asleepTime, d.wakeTime);
         var oldBar = row.querySelector('.sleep-bar');
         if(oldBar){ oldBar.outerHTML = newBar; }
         var shLive = row.querySelector('#sleep-hours-live');
@@ -2662,7 +2638,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 50;
+var APP_VERSION = 51;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
