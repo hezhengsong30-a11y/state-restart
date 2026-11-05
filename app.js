@@ -139,6 +139,24 @@ ITEMS.forEach(function(it){ ITEM_MAP[it.key]=it; });
 var STD_KEYS  = ['dietOk','noAlcoholSweet','noSmoke','walkMin','sleepH','waterMl','sedentaryBreaks','relax'];
 var BUSY_KEYS = ['dietOk','noAlcoholSweet','noSmoke','walkMin','sleepRest'];
 
+/* 四模块分组：把 flat ITEMS key 映射到四个中医式模块（渲染层面分组，数据层保持 flat）
+   新增的调理分组 ITEMS_TCM 是可选扩展，不填不影响打卡。 */
+var ITEMS_TCM = [
+  {key:'acupoint',   name:'穴位按摩',   type:'tri', optional:true},
+  {key:'moxa',       name:'艾灸气海关元', type:'tri', optional:true}
+];
+ITEMS_TCM.forEach(function(it){ ITEM_MAP[it.key]=it; });
+
+var ITEMS_GROUPS = [
+  { key:'diet',     emoji:'🍱', title:'饮食 · 管住嘴',   keys:['dietOk','noAlcoholSweet','noSmoke','waterMl'],  side:'饮食规律 / 无酒无甜饮 / 不吸烟 / 饮水', feature:'kcal' },
+  { key:'exercise', emoji:'🏃', title:'运动 · 迈开腿',   keys:['walkMin','sedentaryBreaks'],                   side:'步行 / 久坐起身',                  feature:'kcalBurn' },
+  { key:'sleep',    emoji:'😴', title:'睡眠 · 养气血',   keys:['sleepH','relax'],                              side:'睡眠时长 / 放松',                  feature:'organ' },
+  { key:'tcm',      emoji:'🌿', title:'调理 · 中医扶正', keys:['acupoint','moxa'],                             side:'气海·太冲 / 艾灸',                  feature:'scene' }
+];
+/* 模块映射：key → group index，方便渲染时快速定位 */
+var KEY_GROUP_MAP = {};
+ITEMS_GROUPS.forEach(function(g,gi){ g.keys.forEach(function(k){ KEY_GROUP_MAP[k]=gi; }); });
+
 var TIPS = {
   diet: '三餐规律，不跳餐、不吃撑。午晚餐尽量半盘非淀粉类蔬菜、四分之一鱼肉蛋豆、四分之一主食。<b>土豆、玉米、山药算主食。</b><br>参考热量约1300～1400千卡/日（碳水45%、蛋白质30%、脂肪25%），具体以营养科方案为准。气虚质宜选平和补气食物：山药、小米、南瓜、红枣、牛肉、鲫鱼、鸡肉等；少生冷、苦寒、辛辣。<b>注意：蜂蜜、红糖、桂圆、荔枝虽属体质宜食，但含糖高，血糖管理期间请控糖优先、遵医嘱。</b>',
   breakfast: '原味燕麦＋无糖牛奶＋鸡蛋；或适量全麦面包＋鸡蛋＋黄瓜。份量按食量和医生建议调整。',
@@ -187,6 +205,146 @@ function num(v){ var n=parseFloat(v); return isNaN(n)?null:n; }
 function isSubmitted(d){ return !!(d && d.done===true); }
 /* 三态：true 完成 / false 未完成 / undefined 未记录 */
 function triOf(d,k){ return d[k]===true ? 'yes' : (d[k]===false ? 'no' : 'unknown'); }
+
+/* === 相机压缩 + 存 localStorage（Phase 1 壳子，AI 接入后自动解析） === */
+function handleCameraPic(file, kind, dateStr){
+  if(!file) return;
+  var r=new FileReader();
+  r.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      /* 压缩到 800px 最长边，JPEG 0.82 */
+      var max=800,w=img.width,h=img.height;
+      if(w>max){ h=Math.round(h*max/w); w=max; }
+      var c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      var dataUrl=c.toDataURL('image/jpeg',0.82);
+      DB.images = DB.images || [];
+      DB.images.push({ kind: kind, date: dateStr, ts: Date.now(), dataUrl: dataUrl });
+      /* 如果是报告，同时存一份到 events（健康档案） */
+      if(kind==='report'){
+        DB.events = DB.events || [];
+        DB.events.push({
+          id: 'img-'+Date.now(), date: dateStr, source: 'upload', kind: 'report',
+          title: '上传报告', imageId: DB.images.length-1,
+          issueIds: [],  /* 后续健康档案里可以手动关联 */
+          note: 'AI 识别暂未接入，请手动在健康档案补充异常项'
+        });
+      }
+      save();
+      var kindLabel = {food:'食物照片', report:'报告图片', glucose:'血糖读数'}[kind] || '图片';
+      toast(kindLabel+'已保存 ✓');
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+/* === 四模块特色渲染 === */
+/* 饮食：估算每日摄入热量（基于打卡状态，固定值不是 AI） */
+function kcalEstimate(d){
+  /* 目标 2200 kcal，按餐盘比例分配 */
+  var bk=520,ln=780,dn=700,sk=100;
+  var total = bk + ln + dn + sk;
+  var ratio = (total/2200*100).toFixed(0);
+  var okDiet = triOf(d,'dietOk')==='yes';
+  var drink = triOf(d,'noAlcoholSweet');
+  var smoke = triOf(d,'noSmoke');
+  return { total: total, target:2200, ratio: ratio, okDiet: okDiet, drink:drink, smoke:smoke };
+}
+/* 运动：估算消耗（步行时间 × 5 MET × 60kg / 60） */
+function kcalBurnEstimate(d){
+  var walkMin = num(d.walkMin) || 0;
+  var burn = Math.round(walkMin * 5 * 60 / 60);
+  return { burn: burn, walkMin: walkMin };
+}
+/* 睡眠：脏腑时段 bar（输入入睡/苏醒时间 → 计算肝经/肺经/胃经时段占比） */
+function organBarHtml(asleep, wake){
+  /* 如果没填，用默认 23:00-07:00 */
+  var as = parseHM(asleep || '23:00');
+  var wk = parseHM(wake || '07:00');
+  if(as.h == null) return '';
+  /* 计算肝经（1-3点）、肺经（3-5点）、胃经（5-7点）在睡眠期间的占比 */
+  var segments = [
+    {name:'肝经',emoji:'🫀',cls:'seg-liver',start:1*60,end:3*60},
+    {name:'肺经',emoji:'🫁',cls:'seg-lung',start:3*60,end:5*60},
+    {name:'胃经',emoji:'🫃',cls:'seg-stomach',start:5*60,end:7*60}
+  ];
+  var span = ((wk.h*60+wk.m) - (as.h*60+as.m) + 24*60) % (24*60);
+  if(span<=0 || span>12*60) return ''; /* 不合理 */
+  var html = '<div class="sleep-bar">';
+  segments.forEach(function(s){
+    /* 计算该段与睡眠的交集 */
+    var ss = Math.max(s.start, as.h*60+as.m);
+    var ee = Math.min(s.end, wk.h*60+wk.m + (wk.h<as.h?24*60:0));
+    if(ss>=ee) return;
+    var pct = ((ee-ss)/span*100).toFixed(0);
+    html += '<div class="sleep-seg '+s.cls+'" style="width:'+pct+'%">'+s.emoji+'<br>'+s.name+'</div>';
+  });
+  /* 深睡条纹（简化：睡眠时长前 30% 时间是深睡） */
+  var deepPct = 30;
+  html += '<div class="sleep-seg seg-deep" style="width:'+deepPct+'%">深沉睡眠</div>';
+  html += '</div>';
+  html += '<div class="sleep-labels"><span>'+(asleep||'23:00')+'</span><span>1:00</span><span>3:00</span><span>5:00</span><span>'+(wake||'07:00')+'</span></div>';
+  return html;
+}
+function parseHM(s){
+  var m = (s||'').match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return {h:null,m:null};
+  return {h:parseInt(m[1]), m:parseInt(m[2])};
+}
+/* 推荐场景横滑（基于气郁质 + 肝酶异常） */
+var HEI_SCENES = [
+  {emoji:'🌇', nm:'傍晚散步', sc:'疏肝解郁 · 气郁质首选'},
+  {emoji:'🫖', nm:'玫瑰花茶', sc:'行气解郁 · 加陈皮更好'},
+  {emoji:'🛏️', nm:'23:00前睡', sc:'肝经 1-3 点排毒'},
+  {emoji:'🤲', nm:'按太冲穴', sc:'脚背第1-2趾间 · 每侧2min'},
+  {emoji:'💆', nm:'敲胆经', sc:'大腿外侧 · 睡前 3min'},
+  {emoji:'🍵', nm:'陈皮普洱茶', sc:'理气化痰 · 适合气郁'},
+  {emoji:'🧘', nm:'八段锦', sc:'每日 20min · 调畅气机'}
+];
+
+function renderModFeature(feature, t, d){
+  var html = '';
+  if(feature==='kcal'){
+    var k = kcalEstimate(d);
+    var ringPct = Math.min(100, k.ratio);
+    html += '<div class="feat kcal-row">'
+      + '<div class="cal-ring"><svg width="62" height="62"><circle cx="31" cy="31" r="27" stroke="#e5e7eb" stroke-width="5" fill="none"/>'
+      + '<circle cx="31" cy="31" r="27" stroke="#2f7d5b" stroke-width="5" fill="none" stroke-dasharray="169.6" stroke-dashoffset="'+(169.6*(1-ringPct/100)).toFixed(1)+'" stroke-linecap="round"/></svg>'
+      + '<div class="cal-ring-inner"><div class="cal-big">'+ringPct+'%</div><div class="cal-unit">目标</div></div></div>'
+      + '<div class="cal-info"><div class="row"><span>预估摄入</span><span class="val">'+k.total+' <span class="tgt">/ '+k.target+' kcal</span></span></div>'
+      + '<div class="row"><span>无酒无甜饮</span><span class="val">'+(k.drink==='yes'?'✓':'—')+'</span></div>'
+      + '<div class="row"><span>不吸烟</span><span class="val">'+(k.smoke==='yes'?'✓':'—')+'</span></div></div></div>';
+  } else if(feature==='kcalBurn'){
+    var kb = kcalBurnEstimate(d);
+    html += '<div class="feat kcal-burn">预估消耗 <b style="color:#2f7d5b">'+kb.burn+'</b> kcal · 步行 '+kb.walkMin+' min';
+    if(kb.walkMin>=30) html += ' <span class="tag" style="background:#ecfdf5;color:#065f46">达标</span>';
+    html += '</div>';
+  } else if(feature==='organ'){
+    html += '<div class="feat organ-row">';
+    html += '<div class="sleep-time-row">'
+      + '<div style="text-align:center;flex:1;background:#f9fafb;border-radius:8px;padding:6px 4px">'
+      + '<div style="font-size:10px;color:#9ca3af">入睡</div>'
+      + '<input type="time" class="asleep-input" style="font-size:15px;font-weight:700;border:none;background:transparent;width:64px;text-align:center" value="'+esc(d.asleepTime||'')+'">'
+      + '</div>'
+      + '<div style="font-size:16px;color:#9ca3af;padding:0 4px">→</div>'
+      + '<div style="text-align:center;flex:1;background:#f9fafb;border-radius:8px;padding:6px 4px">'
+      + '<div style="font-size:10px;color:#9ca3af">苏醒</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#1f2937">'+esc(d.wakeTime||'—')+'</div>'
+      + '</div></div>';
+    html += organBarHtml(d.asleepTime, d.wakeTime);
+    html += '</div>';
+  } else if(feature==='scene'){
+    html += '<div class="feat hei-wrap"><div class="hei-title">🎯 今日推荐场景</div>'
+      + '<div class="hei-list">';
+    HEI_SCENES.forEach(function(sc){
+      html += '<div class="hei-card"><div class="h-em">'+sc.emoji+'</div><div class="h-nm">'+sc.nm+'</div><div class="h-sc">'+sc.sc+'</div></div>';
+    });
+    html += '</div></div>';
+  }
+  return html;
+}
 
 function toast(msg){
   var t = $('#toast');
@@ -785,25 +943,52 @@ function renderToday(){
     + '</div></div>';
   html += '<div class="chart-note" style="margin:-4px 0 12px">极简版只简化显示，不影响其他记录，也不会自动打勾。</div>';
 
-  /* 3. 今日行动与快捷打卡 */
-  /* 监测数据永远可编辑：血糖、体重、腰围、心情、起床时间 —— 不是承诺，是记录 */
+  /* 3. 今日行动 —— 标准版按四模块分组渲染；极简版保持原 flat 简化 */
   var dis = locked ? ' disabled' : '';
-  var disMon = ''; /* 监测类字段：永远不禁用 */
-  html += '<div class="card"><div class="card-title">今日行动 <span class="sub">'+(busy?'极简版 4 项':'标准版 8 项')+'</span>';
+  var disMon = '';
+  html += '<div class="card"><div class="card-title">今日行动';
+  if(!busy){ html += ' <span class="sub">标准版 8 项 · 四模块分组</span>'; }
+  else { html += ' <span class="sub">极简版 4 项</span>'; }
   if(!submitted){
     html += '<button class="btn ghost small" id="btn-skip-all" title="出差/生病等特殊情况，一键标记全部跳过">今日特殊 · 全部跳过</button>';
   }
   html += '</div>';
+
   if(!busy){
-    html += actionTri(t,'dietOk','饮食规律，餐盘比例基本合理','',locked);
-    html += actionTri(t,'noAlcoholSweet','无酒、无含糖饮料','',locked);
-    html += actionTri(t,'noSmoke','不吸烟','聚会、压力大时特别留意',locked);
-    html += actionNum(t,'walkMin','步行','分钟','例如 30',locked,'plan-walk');
-    html += actionNum(t,'sleepH','睡眠（昨晚）','小时','例如 7.5',locked);
-    html += actionNum(t,'waterMl','饮水','毫升','例如 2500',locked,'quick-water');
-    html += actionTri(t,'sedentaryBreaks','久坐中断','每坐约1小时起身3分钟',locked);
-    html += actionTri(t,'relax','放松 3～5 分钟','可选，可今日跳过',locked,true);
+    /* ===== 标准版：按 ITEMS_GROUPS 四模块分组渲染 ===== */
+    ITEMS_GROUPS.forEach(function(g){
+      html += '<div class="mod-block">';
+      html += '<div class="mod-head"><span class="mod-emoji">'+g.emoji+'</span><span class="mod-title">'+esc(g.title)+'</span></div>';
+      /* mini-grid：紧凑 2×2 显示各 key 的状态（check + label） */
+      html += '<div class="mod-grid">';
+      g.keys.forEach(function(k){
+        var it = ITEM_MAP[k];
+        if(!it) return;
+        var triKey = it.type==='tri' || it.type==='num' ? k : null;
+        var skipKey = d.skipped && d.skipped[k];
+        var triVal = triKey ? triOf(d,triKey) : null;
+        var cellCls = 'mod-cell';
+        if(it.type==='tri'){
+          cellCls += (triVal==='yes'?' done':(triVal==='no'?' bad':(skipKey?' skip':'')));
+        } else if(it.type==='num'){
+          cellCls += (hasNum(d[k])?' done':'');
+        }
+        html += '<div class="'+cellCls+'">';
+        if(it.type==='tri'){
+          html += '<div class="mc-check" data-tri="'+k+'">'+(triVal==='yes'?'✓':(triVal==='no'?'✕':(skipKey?'—':'')))+'</div>';
+        } else if(it.type==='num'){
+          html += '<div class="mc-num">'+(hasNum(d[k])?esc(d[k]):'—')+'</div>';
+        }
+        html += '<div class="mc-lbl">'+esc(it.name)+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      /* 模块特色：kcal / kcalBurn / 脏腑时段 bar / 推荐场景 */
+      html += renderModFeature(g.feature, t, d);
+      html += '</div>';
+    });
   } else {
+    /* ===== 极简版：保持原 flat 简化渲染，不动 ===== */
     html += '<div class="chart-note" style="margin:-2px 0 8px">极简版保住这 4 项即可：规律吃饭、无酒无甜饮、步行10分钟、尽量按时休息。</div>';
     html += actionTri(t,'dietOk','规律吃饭','不跳餐、不吃撑',locked);
     html += actionTri(t,'noAlcoholSweet','无酒、无含糖饮料','',locked);
@@ -819,66 +1004,98 @@ function renderToday(){
   }
   html += '</div>';
 
-  /* 4. 今日数值 */
-  html += '<div class="card"><div class="card-title">今日数值 <span class="sub">空着代表未记录，不算 0</span></div>';
-  html += '<div class="num-summary" id="num-summary">'+numSummary(d)+'</div>';
-  html += '<div class="chart-note" style="text-align:left">饮水量／步行在「今日行动」里填写，可用快捷按钮累加。</div>';
-  html += '<div class="field"><label>起床时间（当天实际）</label><input type="time"'+disMon+' id="f-wake" value="'+esc(d.wakeTime)+'"><div class="hint">重填即覆盖今日记录</div></div>';
-  if(plan.weigh){
-    html += '<div class="weigh-box"><div class="weigh-title">⚖️ 今天是指定测量日</div>'
-      + '<div class="field-row">'
-      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span><div class="hint">重填即覆盖</div></div>'
-      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span><div class="hint">重填即覆盖</div></div>'
-      + '</div></div>';
-  } else {
-    html += '<details class="fold" id="fold-measure"><summary>其他测量（体重／腰围）</summary>'
-      + '<div class="field-row">'
-      + '<div class="field input-suffix"><label>体重</label><input type="number" step="0.1"'+disMon+' id="f-weight" value="'+esc(d.weight)+'" placeholder="例如 88.5"><span class="suffix">kg</span><div class="hint">重填即覆盖</div></div>'
-      + '<div class="field input-suffix"><label>腰围</label><input type="number" step="0.5"'+disMon+' id="f-waist" value="'+esc(d.waist)+'" placeholder="例如 98"><span class="suffix">cm</span><div class="hint">重填即覆盖</div></div>'
-      + '</div></details>';
+  /* 4. 监测指标（4 张大数字卡片，华为运动健康风格） */
+  html += '<div class="card"><div class="card-title">监测指标 <span class="sub">空着代表未记录</span></div>';
+  html += '<div class="metric-grid">';
+
+  /* 血糖卡 */
+  var todayFasting = (d.glucose||[]).filter(function(g){return g.timing==='空腹';});
+  var gVal = todayFasting.length ? todayFasting[0].value : null;
+  var gPrev = histFasting.filter(function(p){ return p.date!==t; });
+  var gTrend = '';
+  if(gVal!=null && gPrev.length){
+    var lastG = gPrev[gPrev.length-1].value;
+    gTrend = (gVal-parseFloat(lastG)>0.2) ? ' ▲'
+            : (parseFloat(lastG)-gVal>0.2) ? ' ▼' : ' ≈';
   }
+  html += '<div class="metric-card metric-glucose">'
+    + '<div class="metric-head"><span class="metric-icon">🩸</span><span class="metric-label">空腹血糖</span>'
+    + '<span class="metric-ref">正常 3.9-6.1</span></div>'
+    + '<div class="metric-big">'+(gVal!=null?esc(gVal):'—')+' <span class="metric-unit">mmol/L</span>'
+    + (gVal!=null?('<span class="metric-trend">'+gTrend+'</span>'):'')
+    + '</div>'
+    + (todayFasting.length?('<div class="metric-sub">'+esc(todayFasting[0].method||'家用血糖仪')+'</div>'):'')
+    + '<div class="metric-input">'
+    + '<input type="number" step="0.1" id="g-value" placeholder="测了就填" value="'+esc(gVal||'')+'">'
+    + '<select id="g-timing" style="min-width:72px">'+G_TIMINGS.map(function(x){return '<option'+(x==='空腹'?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
+    + '<select id="g-method" style="min-width:96px"><option value="">方式</option>'
+    + ['家用血糖仪','静脉血检测','动态血糖仪'].map(function(x){ return '<option>'+x+'</option>'; }).join('')
+    + '</select>'
+    + '</div>'
+    + '</div>';
+
+  /* 体重卡 */
+  var wVal = num(d.weight);
+  var qgNow = resolveQuarterGoal();
+  var wTrend = '';
+  var wHist = [];
+  Object.keys(DB.days).sort().forEach(function(ds){ var w=num(DB.days[ds].weight); if(w!=null && ds<t) wHist.push({date:ds,value:w}); });
+  if(wVal!=null && wHist.length){
+    var lastW = wHist[wHist.length-1].value;
+    wTrend = (wVal-lastW>0.2) ? '▲' : (lastW-wVal>0.2) ? '▼' : '≈';
+  }
+  html += '<div class="metric-card metric-weight">'
+    + '<div class="metric-head"><span class="metric-icon">⚖️</span><span class="metric-label">体重</span>'
+    + '<span class="metric-ref">三月目标 '+qgNow.targetWeight+'kg</span></div>'
+    + '<div class="metric-big">'+(wVal!=null?wVal.toFixed(1):'—')+' <span class="metric-unit">kg</span>'
+    + (wVal!=null?('<span class="metric-trend">'+wTrend+'</span>'):'')
+    + '</div>'
+    + (wVal!=null && wHist.length?('<div class="metric-sub">上次 '+lastW+'kg · 差 '+(wVal-lastW).toFixed(1)+'kg</div>'):'')
+    + '<div class="metric-input"><input type="number" step="0.1"'+disMon+' id="f-weight" placeholder="测了就填" value="'+esc(d.weight)+'"><span class="munit">kg</span></div>'
+    + '</div>';
+
+  /* 腰围卡 */
+  var waVal = num(d.waist);
+  html += '<div class="metric-card metric-waist">'
+    + '<div class="metric-head"><span class="metric-icon">📏</span><span class="metric-label">腰围</span>'
+    + '<span class="metric-ref">中心型肥胖风险男≥90cm</span></div>'
+    + '<div class="metric-big">'+(waVal!=null?waVal.toFixed(1):'—')+' <span class="metric-unit">cm</span></div>'
+    + '<div class="metric-input"><input type="number" step="0.5"'+disMon+' id="f-waist" placeholder="测了就填" value="'+esc(d.waist)+'"><span class="munit">cm</span></div>'
+    + '</div>';
+
+  /* 起床时间卡 */
+  html += '<div class="metric-card metric-wake">'
+    + '<div class="metric-head"><span class="metric-icon">🌅</span><span class="metric-label">起床时间</span>'
+    + '<span class="metric-ref">早睡早起更好</span></div>'
+    + '<div class="metric-big">'+(d.wakeTime?esc(d.wakeTime):'—')+'</div>'
+    + '<div class="metric-input"><input type="time"'+disMon+' id="f-wake" value="'+esc(d.wakeTime)+'"></div>'
+    + '</div>';
+
+  html += '</div>'; /* metric-grid */
+  html += '<div class="chart-note" style="text-align:left">数值改了自动保存草稿；体重／腰围建议每周固定时间测一次。</div>';
   html += '</div>';
 
-  /* 5. 血糖记录（默认折叠，覆盖逻辑：同天同时机只保留最新一条） */
-  html += '<details class="fold card" id="fold-glucose"'+(uiState.glucose?' open':'')+'><summary>血糖记录（空腹）'
-    + '<span class="fold-sub">'+((d.glucose.length>0||histFasting.length>0)?('今日 '+d.glucose.filter(function(x){return x.timing==='空腹';}).length+' 条 · 历史 '+histFasting.length+' 条'):'默认折叠')+'</span></summary>';
-  html += '<div class="chart-note" style="text-align:left;margin:2px 0 8px">家用血糖仪每天早上测的就是空腹血糖。重复记录同天同时机会自动覆盖，只保留最新值。</div>';
-
-  /* 今日（所有时机） */
-  var todayGlucose = d.glucose.slice().reverse(); /* 最新在前 */
-  if(todayGlucose.length===0 && histFasting.length===0){
-    html += '<div class="empty" style="padding:8px 0">还没有血糖记录</div>';
-  } else {
-    if(todayGlucose.length>0){
-      html += '<div class="g-group">今日测量</div>';
-      todayGlucose.forEach(function(g){
-        html += '<div class="glucose-item"><span class="val">'+esc(g.value)+'</span><span class="tag">mmol/L</span>'
-          + '<span class="tag">'+esc(g.timing)+'</span>'
-          + (g.method?'<span class="tag">'+esc(g.method)+'</span>':'<span class="tag warn">测量方式待补充</span>')
-          + (g.meds?'<span class="tag">用药：'+esc(g.meds)+'</span>':'')+'</div>';
-      });
-    }
-    /* 历史空腹（跨日期，最新在前，不含今天） */
-    var histOnly = histFasting.filter(function(p){ return p.date!==t; });
-    if(histOnly.length>0){
-      html += '<div class="g-group">历史空腹血糖（'+histOnly.length+' 条）</div>';
-      histOnly.slice().reverse().forEach(function(p){
-        html += '<div class="glucose-item"><span class="val">'+p.value+'</span><span class="tag">mmol/L</span>'
-          + '<span class="tag">空腹</span><span class="tag">'+dateLabel(p.date)+'</span>'
-          + (p.method?'<span class="tag">'+esc(p.method)+'</span>':'<span class="tag warn">测量方式未记录</span>')+'</div>';
-      });
-    }
+  /* 血糖历史记录（折叠显示，之前的今日血糖 input 合并进上面的 metric-card 了） */
+  html += '<details class="fold card" id="fold-glucose-hist">'
+    + '<summary>血糖历史记录（'+(histFasting.length+todayFasting.length)+' 条）'
+    + '<span class="fold-sub">'+(todayFasting.length?'今日 1 条 · ':'')+'空腹 '+histFasting.length+' 条历史</span></summary>';
+  if(todayFasting.length>0){
+    html += '<div class="g-group">今日</div>';
+    todayFasting.forEach(function(g){
+      html += '<div class="glucose-item"><span class="val">'+esc(g.value)+'</span><span class="tag">mmol/L</span>'
+        + '<span class="tag">'+esc(g.timing)+'</span>'
+        + (g.method?'<span class="tag">'+esc(g.method)+'</span>':'')+'</div>';
+    });
   }
-  html += '<div class="field-row" style="margin-top:8px">'
-    + '<div class="field input-suffix"><input type="number" step="0.1" id="g-value" placeholder="数值"><span class="suffix">mmol/L</span></div>'
-    + '<div class="field"><select id="g-timing">'+G_TIMINGS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div>'
-    + '</div>'
-    + '<div class="field-row">'
-    + '<div class="field"><select id="g-method"><option value="">测量方式</option>'
-    + ['家用血糖仪','静脉血检测','动态血糖仪'].map(function(x){ return '<option>'+x+'</option>'; }).join('')
-    + '</select></div>'
-    + '<div class="field"><input type="text" id="g-meds" placeholder="用药情况（可不填）"></div>'
-    + '</div>';
+  var histOnly2 = histFasting.filter(function(p){ return p.date!==t; });
+  if(histOnly2.length>0){
+    html += '<div class="g-group">历史空腹血糖</div>';
+    histOnly2.slice().reverse().forEach(function(p){
+      html += '<div class="glucose-item"><span class="val">'+p.value+'</span><span class="tag">mmol/L</span>'
+        + '<span class="tag">空腹</span><span class="tag">'+dateLabel(p.date)+'</span>'
+        + (p.method?'<span class="tag">'+esc(p.method)+'</span>':'')+'</div>';
+    });
+  }
   html += '</details>';
 
   /* 6. 心情记录（默认折叠） */
@@ -1215,6 +1432,65 @@ function bindToday(el,d,t){
     });
     flushDraft();
     renderToday(); toast('今日行动已全部标记跳过 ✓');
+  });
+
+  /* mini-grid 三态点击（标准版四模块分组里的 ✓/✕/— 小方块） */
+  $$('.mc-check',el).forEach(function(box){
+    box.addEventListener('click',function(){
+      if(locked && viewing===todayStr()) { toast('已提交 · 请点底部「修改」解锁'); return; }
+      var key=box.getAttribute('data-tri');
+      d.skipped = d.skipped || {};
+      var cur = d[key];
+      /* 循环切换：undefined → true → false → undefined 同时清除 skip */
+      if(cur===undefined){ d[key]=true; delete d.skipped[key]; }
+      else if(cur===true){ d[key]=false; delete d.skipped[key]; }
+      else { d[key]=undefined; delete d.skipped[key]; }
+      flushDraft();
+      /* 只更新该 cell 的样式，不整页重绘 */
+      var cell=box.parentElement;
+      cell.classList.remove('done','bad','skip');
+      var v=triOf(d,key);
+      box.textContent = v==='yes'?'✓':(v==='no'?'✕':'');
+      if(v==='yes') cell.classList.add('done');
+      else if(v==='no') cell.classList.add('bad');
+      else if(d.skipped[key]){ cell.classList.add('skip'); box.textContent='—'; }
+    });
+  });
+
+  /* 入睡时间自动保存 */
+  var asleepInput=$('.asleep-input',el);
+  if(asleepInput) asleepInput.forEach(function(ip){
+    ip.addEventListener('change',function(){
+      d.asleepTime=ip.value;
+      flushDraft();
+      /* 重新渲染脏腑时段 bar（只更新 sleep feature 区） */
+      var featRow = ip.closest('.organ-row');
+      if(featRow){
+        var newBar = organBarHtml(d.asleepTime, d.wakeTime);
+        var oldBar = featRow.querySelector('.sleep-bar');
+        if(oldBar){ oldBar.outerHTML = newBar; }
+        else { featRow.insertAdjacentHTML('beforeend', newBar); }
+      }
+    });
+  });
+
+  /* 浮动相机按钮：拍食物 / 上传报告 / 拍血糖读数
+     Phase 1：纯前端压缩存 localStorage + 手动解析占位，AI 接入后自动回填 */
+  var fabCam=document.getElementById('fabCam');
+  if(fabCam){
+    fabCam.addEventListener('click',function(e){ e.stopPropagation(); document.getElementById('camMenu').classList.toggle('show'); });
+    document.addEventListener('click',function(){ document.getElementById('camMenu').classList.remove('show'); });
+  }
+  document.getElementById('camFood').addEventListener('click',function(){ document.getElementById('fileFood').click(); });
+  document.getElementById('camReport').addEventListener('click',function(){ document.getElementById('fileReport').click(); });
+  document.getElementById('camGlucose').addEventListener('click',function(){ document.getElementById('fileGlucose').click(); });
+  ['fileFood','fileReport','fileGlucose'].forEach(function(id){
+    document.getElementById(id).addEventListener('change',function(e){
+      var f=e.target.files[0]; if(!f) return;
+      handleCameraPic(f, id.replace('file','').toLowerCase(), t);
+      document.getElementById('camMenu').classList.remove('show');
+      e.target.value=''; /* 清空，同文件可重复选 */
+    });
   });
 
   var btnSubmit=$('#btn-submit',el);
@@ -2200,7 +2476,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 36;
+var APP_VERSION = 37;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;

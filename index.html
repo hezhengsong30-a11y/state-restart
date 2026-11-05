@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>30天调理打卡</title>
-<link rel="stylesheet" href="styles.v36.css">
+<link rel="stylesheet" href="styles.v37.css">
 </head>
 <body>
 <header class="topbar">
@@ -31,9 +31,20 @@
 
 <div id="toast" class="toast"></div>
 
-<script src="app.v36.js"></script>
-<script src="archive-seed.v36.js"></script>
-<script src="health-archive.v36.js"></script>
-<div class="ver-tag">v36</div>
+<!-- 浮动相机按钮 + 菜单（Phase 1：纯前端压缩存图） -->
+<button class="fab-cam" id="fabCam" aria-label="拍照/上传">📷</button>
+<div class="cam-menu" id="camMenu">
+  <button id="camFood"><span>🍱</span>拍食物</button>
+  <button id="camReport"><span>📋</span>上传报告</button>
+  <button id="camGlucose"><span>🩸</span>拍血糖读数</button>
+</div>
+<input type="file" id="fileFood" accept="image/*" capture="environment" hidden>
+<input type="file" id="fileReport" accept="image/*,application/pdf" hidden>
+<input type="file" id="fileGlucose" accept="image/*" capture="environment" hidden>
+
+<script src="app.v37.js"></script>
+<script src="archive-seed.v37.js"></script>
+<script src="health-archive.v37.js"></script>
+<div class="ver-tag">v37</div>
 </body>
 </html>

@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>今日四模块 · Demo v37</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:#f4f5f7;color:#1f2937;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;font-size:15px;line-height:1.5;overflow-x:hidden}
+:root{--p:#2f7d5b;--p-d:#236045;--p-l:#6ba88a;--w:#d97706;--w-l:#fbbf24;--e:#dc2626;--bg:#f4f5f7;--card:#fff;--t1:#1f2937;--t2:#4b5563;--t3:#9ca3af;--bd:#e5e7eb;--r:14px}
+body{padding-bottom:92px}
+
+/* === 顶部 hero === */
+.hero{background:linear-gradient(135deg,#2f7d5b 0%,#6ba88a 100%);color:#fff;padding:20px 18px 24px;border-radius:0 0 22px 22px;position:relative}
+.hero-row{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.hero-title{font-size:20px;font-weight:700}
+.hero-sub{font-size:12px;opacity:.85;margin-top:2px}
+.hero-date{font-size:12px;opacity:.85;text-align:right}
+.hero-stats{display:flex;gap:10px}
+.hs{flex:1;background:rgba(255,255,255,.18);border-radius:10px;padding:10px}
+.hs-num{font-size:22px;font-weight:700;line-height:1}
+.hs-label{font-size:11px;opacity:.9;margin-top:4px}
+
+/* === 容器 === */
+.page{max-width:480px;margin:0 auto;padding:0 14px;padding-top:12px}
+
+/* === 通用卡片 === */
+.card{background:var(--card);border-radius:var(--r);padding:14px 14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card-emoji{font-size:18px}
+.card-title{font-size:16px;font-weight:700;flex:1}
+.card-sub{font-size:11px;color:var(--t3)}
+.card-more{font-size:12px;color:var(--p)}
+
+/* === 子项 grid === */
+.sub-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sub-item{text-align:center;padding:10px 4px;border-radius:10px;background:#f9fafb;border:1px solid transparent;cursor:pointer;transition:.15s}
+.sub-item:active{transform:scale(.97)}
+.sub-item.done{background:#ecfdf5;border-color:#a7f3d0}
+.sub-item.warn{background:#fffbeb;border-color:#fde68a}
+.sub-item.bad{background:#fef2f2;border-color:#fecaca}
+.sub-item .em{font-size:22px;margin-bottom:4px;display:block}
+.sub-item .lbl{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub-item .val{font-size:13px;font-weight:700;color:var(--t1);margin-top:2px}
+
+/* === 饮食特色：大卡环 === */
+.cal-row{display:flex;align-items:center;gap:16px;margin-bottom:12px}
+.cal-ring{position:relative;width:78px;height:78px;flex-shrink:0}
+.cal-ring svg{transform:rotate(-90deg)}
+.cal-ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cal-big{font-size:18px;font-weight:700;line-height:1;color:var(--p)}
+.cal-unit{font-size:10px;color:var(--t3);margin-top:1px}
+.cal-info{flex:1}
+.cal-info .row{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:4px}
+.cal-info .val{font-weight:700;color:var(--t1)}
+.cal-info .tgt{color:var(--t3)}
+
+/* === 睡眠特色：脏腑时段 bar === */
+.sleep-bar{display:flex;height:34px;border-radius:8px;overflow:hidden;margin-top:6px;background:#e5e7eb}
+.sleep-seg{display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:600}
+.seg-liver{background:#7c3aed}  /* 肝经 1-3 点 */
+.seg-lung{background:#0891b2}   /* 肺经 3-5 点 */
+.seg-stomach{background:#059669} /* 胃经 5-7 点 */
+.seg-deep{background:#1e3a8a;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.15) 0 6px,transparent 6px 12px)}
+.sleep-labels{display:flex;font-size:9px;color:var(--t3);margin-top:3px;justify-content:space-between}
+
+/* === 调理特色：推荐场景横滑 === */
+.hei-list{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:4px}
+.hei-list::-webkit-scrollbar{display:none}
+.hei-card{min-width:108px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:10px;padding:10px;flex-shrink:0}
+.hei-card .h-em{font-size:22px}
+.hei-card .h-nm{font-size:12px;font-weight:700;color:#92400e;margin-top:4px}
+.hei-card .h-sc{font-size:10px;color:#b45309;margin-top:2px}
+
+/* === 底部 tabbar === */
+.tabbar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:6px 0 env(safe-area-inset-bottom);z-index:200}
+.tabbar button{background:none;border:none;font-size:11px;color:var(--t3);display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 12px}
+.tabbar button.on{color:var(--p)}
+.tabbar .tb-ic{font-size:20px}
+
+/* === 浮动相机 === */
+.fab-cam{position:fixed;right:14px;bottom:72px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#2f7d5b,#6ba88a);box-shadow:0 4px 14px rgba(47,125,91,.4);color:#fff;border:none;font-size:24px;display:flex;align-items:center;justify-content:center;z-index:210;cursor:pointer}
+.fab-cam:active{transform:scale(.92)}
+
+/* === 相机菜单 === */
+.cam-menu{position:fixed;right:14px;bottom:132px;background:#fff;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px;z-index:210;min-width:160px;display:none}
+.cam-menu.show{display:block}
+.cam-menu button{display:block;width:100%;background:none;border:none;text-align:left;padding:8px 12px;font-size:14px;border-radius:8px;cursor:pointer}
+.cam-menu button:hover{background:#f3f4f6}
+.cam-menu button .em{margin-right:8px}
+
+/* === 隐藏 input === */
+.hidden-input{display:none}
+
+/* === 数据输入小弹窗 === */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;align-items:flex-end}
+.modal-mask.show{display:flex}
+.modal{background:#fff;border-radius:18px 18px 0 0;padding:16px 16px env(safe-area-inset-bottom);width:100%;max-height:85vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:12px;text-align:center}
+.modal-close{text-align:center;color:var(--t3);padding-top:10px;font-size:14px;cursor:pointer}
+.mfield{margin-bottom:12px}
+.mfield label{display:block;font-size:12px;color:var(--t2);margin-bottom:6px}
+.mfield input,.mfield select,.mfield textarea{width:100%;border:1px solid var(--bd);border-radius:8px;padding:10px;font-size:15px;background:#fafafa}
+.mfield input:focus,.mfield select:focus,.mfield textarea:focus{outline:none;border-color:var(--p);background:#fff}
+.mchip-row{display:flex;gap:6px;flex-wrap:wrap}
+.mchip{padding:6px 12px;border:1px solid var(--bd);background:#fff;border-radius:20px;font-size:13px;cursor:pointer}
+.mchip.on{background:var(--p);color:#fff;border-color:var(--p)}
+.mbtn-primary{width:100%;padding:12px;background:var(--p);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;margin-top:8px}
+.mbtn-ghost{width:100%;padding:12px;background:#fff;color:var(--t2);border:1px solid var(--bd);border-radius:10px;font-size:14px;margin-top:8px}
+
+/* === 图片预览 === */
+.img-card{background:#f9fafb;border-radius:10px;padding:10px;margin-bottom:10px}
+.img-card img{width:100%;border-radius:6px}
+.img-card .hint{font-size:12px;color:var(--t3);margin-top:8px}
+
+/* === 趋势小火花 === */
+.spark{display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:700}
+.spark.up{color:#dc2626}
+.spark.down{color:#059669}
+.spark.flat{color:#9ca3af}
+
+/* === 健康点评 === */
+.pinglun{background:linear-gradient(135deg,#fef9c3,#fef3c7);border-radius:10px;padding:10px 12px;font-size:13px;color:#854d0e;margin-top:6px;line-height:1.6}
+.pinglun .ic{margin-right:4px}
+</style></head>
+<body>
+
+<!-- ============ 顶部 hero ============ -->
+<div class="hero">
+  <div class="hero-row">
+    <div>
+      <div class="hero-title">11 月 5 日 · 周三</div>
+      <div class="hero-sub">10 月 20 日开始 · 第 17 天 / 共 91 天</div>
+    </div>
+    <div class="hero-date">周期进度 19%<br>还剩 <b>74 天</b></div>
+  </div>
+  <div class="hero-stats">
+    <div class="hs"><div class="hs-num">87.8</div><div class="hs-label">kg · 目标 80kg</div></div>
+    <div class="hs"><div class="hs-num">6.9</div><div class="hs-label">空腹 mmol/L</div></div>
+    <div class="hs"><div class="hs-num">🔥7</div><div class="hs-label">连续达标天</div></div>
+  </div>
+</div>
+
+<!-- ============ 四模块 ============ -->
+<div class="page">
+
+  <!-- ======= 模块 1：饮食 ======= -->
+  <div class="card">
+    <div class="card-h"><span class="card-emoji">🍱</span><div class="card-title">饮食 · 管住嘴</div><span class="card-sub">预估 1850 / 2200 kcal</span></div>
+
+    <div class="cal-row">
+      <div class="cal-ring">
+        <svg width="78" height="78"><circle cx="39" cy="39" r="34" stroke="#e5e7eb" stroke-width="7" fill="none"/>
+        <circle cx="39" cy="39" r="34" stroke="#2f7d5b" stroke-width="7" fill="none" stroke-dasharray="213.6" stroke-dashoffset="39" stroke-linecap="round"/>
+      </svg>
+      <div class="cal-ring-inner"><div class="cal-big">84%</div><div class="cal-unit">kcal</div></div>
+    </div>
+    <div class="cal-info">
+      <div class="row"><span>早餐</span><span class="val">520 <span class="tgt">/ 550</span></span></div>
+      <div class="row"><span>午餐</span><span class="val">780 <span class="tgt">/ 850</span></span></div>
+      <div class="row"><span>晚餐</span><span class="val">380 <span class="tgt">/ 700</span></span></div>
+      <div class="row"><span>零食</span><span class="val">170 <span class="tgt">/ 100</span></span></div>
+    </div>
+
+    <div class="sub-grid">
+      <div class="sub-item bad" data-sub="smoke"><span class="em">🚬</span><span class="lbl">抽烟</span><span class="val">未抽 ✓</span></div>
+      <div class="sub-item bad" data-sub="alcohol"><span class="em">🍺</span><span class="lbl">饮酒</span><span class="val">未喝 ✓</span></div>
+      <div class="sub-item done" data-sub="breakfast"><span class="em">🥣</span><span class="lbl">三餐规律</span><span class="val">✓ 已吃</span></div>
+      <div class="sub-item warn" data-sub="snack"><span class="em">🍪</span><span class="lbl">零食</span><span class="val">核桃×3</span></div>
+    </div>
+  </div>
+
+  <!-- ======= 模块 2：运动 ======= -->
+  <div class="card">
+    <div class="card-h"><span class="card-emoji">🏃</span><div class="card-title">运动 · 迈开腿</div><span class="card-sub">预估消耗 320 kcal</span></div>
+
+    <div class="sub-grid">
+      <div class="sub-item done" data-sub="walk"><span class="em">🚶</span><span class="lbl">步行</span><span class="val">52 分钟</span></div>
+      <div class="sub-item" data-sub="exercise"><span class="em">🏋️</span><span class="lbl">抗阻</span><span class="val">25 分钟</span></div>
+      <div class="sub-item warn" data-sub="stretch"><span class="em">🧘</span><span class="lbl">拉伸/瑜伽</span><span class="val">未做</span></div>
+      <div class="sub-item" data-sub="step"><span class="em">👟</span><span class="lbl">步数</span><span class="val">7,842</span></div>
+    </div>
+
+    <div class="pinglun" style="margin-top:12px">
+      <span class="ic">💡</span>今日活动量不错，明天走路时试试把腹部微微收住，增加一点核心稳定。
+    </div>
+  </div>
+
+  <!-- ======= 模块 3：睡眠 ======= -->
+  <div class="card">
+    <div class="card-h"><span class="card-emoji">😴</span><div class="card-title">睡眠 · 养气血</div><span class="card-sub">深度 1h45m · 评分 78</span></div>
+
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px">
+      <div style="text-align:center;flex:1;background:#f9fafb;border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:#9ca3af">入睡</div>
+        <div style="font-size:22px;font-weight:700;color:#1f2937;margin-top:2px">23:12</div>
+      </div>
+      <div style="font-size:24px;color:#9ca3af">→</div>
+      <div style="text-align:center;flex:1;background:#f9fafb;border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:#9ca3af">苏醒</div>
+        <div style="font-size:22px;font-weight:700;color:#1f2937;margin-top:2px">07:05</div>
+      </div>
+      <div style="text-align:center;flex:1;background:#f0fdf4;border-radius:10px;padding:10px">
+        <div style="font-size:11px;color:#2f7d5b">时长</div>
+        <div style="font-size:22px;font-weight:700;color:#2f7d5b;margin-top:2px">7h53</div>
+      </div>
+    </div>
+
+    <!-- 脏腑排毒时段（按入睡 23:00、醒来 07:00） -->
+    <div class="sleep-bar">
+      <div class="sleep-seg seg-liver" style="width:12%">肝经<br>1-3</div>
+      <div class="sleep-seg seg-lung" style="width:12%">肺经<br>3-5</div>
+      <div class="sleep-seg seg-stomach" style="width:12%">胃经<br>5-7</div>
+      <div class="sleep-seg seg-deep" style="width:64%">深沉睡眠</div>
+    </div>
+    <div class="sleep-labels">
+      <span>23:00</span><span>1:00</span><span>3:00</span><span>5:00</span><span>7:00</span>
+    </div>
+
+    <div class="pinglun" style="margin-top:10px">
+      <span class="ic">🫀</span>昨晚 1-3 点肝经排毒时段在深睡，对肝酶异常非常关键。保持 23:00 前入睡。
+    </div>
+  </div>
+
+  <!-- ======= 模块 4：调理 ======= -->
+  <div class="card">
+    <div class="card-h"><span class="card-emoji">🌿</span><div class="card-title">调理 · 中医扶正</div><span class="card-sub">气郁质 · 肝酶 11 年异常</span></div>
+
+    <div class="sub-grid">
+      <div class="sub-item done" data-sub="acupoint"><span class="em">📍</span><span class="lbl">穴位按摩</span><span class="val">气海 · 5min</span></div>
+      <div class="sub-item" data-sub="qigong"><span class="em">🧗</span><span class="lbl">养生操</span><span class="val">未做</span></div>
+      <div class="sub-item" data-sub="acupuncture"><span class="em">💉</span><span class="lbl">针灸/理疗</span><span class="val">—</span></div>
+      <div class="sub-item warn" data-sub="moxa"><span class="em">🔥</span><span class="lbl">艾灸气海关元</span><span class="val">未做</span></div>
+    </div>
+
+    <div style="margin:14px 0 6px;font-size:13px;font-weight:600;color:#374151">🎯 今日推荐场景</div>
+    <div class="hei-list">
+      <div class="hei-card"><div class="h-em">🌇</div><div class="h-nm">傍晚散步</div><div class="h-sc">疏肝解郁 · 气郁质首选</div></div>
+      <div class="hei-card"><div class="h-em">🫖</div><div class="h-nm">玫瑰花茶</div><div class="h-sc">行气解郁 · 加陈皮更好</div></div>
+      <div class="hei-card"><div class="h-em">🛏️</div><div class="h-nm">23:00 前睡</div><div class="h-sc">肝经 1-3 点排毒</div></div>
+      <div class="hei-card"><div class="h-em">🤲</div><div class="h-nm">按太冲穴</div><div class="h-sc">脚背第 1-2 趾间 · 每侧 2min</div></div>
+      <div class="hei-card"><div class="h-em">💆</div><div class="h-nm">敲胆经</div><div class="h-sc">大腿外侧 · 睡前 3min</div></div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- ============ 浮动相机 ============ -->
+<button class="fab-cam" id="fabCam" aria-label="拍照/上传">📷</button>
+<div class="cam-menu" id="camMenu">
+  <button id="camFood"><span class="em">🍱</span>拍食物识别热量</button>
+  <button id="camReport"><span class="em">📋</span>上传检测/体检报告</button>
+  <button id="camGlucose"><span class="em">🩸</span>拍血糖仪读数</button>
+</div>
+
+<!-- ============ 隐藏文件选择 ============ -->
+<input type="file" id="fileFood" class="hidden-input" accept="image/*" capture="environment">
+<input type="file" id="fileReport" class="hidden-input" accept="image/*,application/pdf">
+<input type="file" id="fileGlucose" class="hidden-input" accept="image/*" capture="environment">
+
+<!-- ============ 相机结果 modal ============ -->
+<div class="modal-mask" id="camModal">
+  <div class="modal">
+    <div class="modal-title" id="camModalTitle">上传检测报告</div>
+    <div id="camModalBody"></div>
+    <div class="modal-close" id="camModalClose">取消</div>
+  </div>
+</div>
+
+<!-- ============ 底部 tabbar ============ -->
+<div class="tabbar">
+  <button class="on"><div class="tb-ic">🏠</div>今日</button>
+  <button><div class="tb-ic">📈</div>趋势</button>
+  <button><div class="tb-ic">📋</div>档案</button>
+  <button><div class="tb-ic">⚙️</div>设置</button>
+</div>
+
+<script>
+/* === 相机浮动按钮菜单切换 === */
+var fab=document.getElementById('fabCam'), menu=document.getElementById('camMenu');
+fab.addEventListener('click',function(e){ e.stopPropagation(); menu.classList.toggle('show'); });
+document.addEventListener('click',function(){ menu.classList.remove('show'); });
+menu.addEventListener('click',function(e){ e.stopPropagation(); });
+
+/* === 隐藏文件选择触发 === */
+document.getElementById('camFood').addEventListener('click',function(e){ e.stopPropagation(); });
+document.getElementById('camReport').addEventListener('click',function(e){ e.stopPropagation(); });
+document.getElementById('camGlucose').addEventListener('click',function(e){ e.stopPropagation(); });
+
+document.getElementById('camFood').addEventListener('change',function(e){ handlePic(e.target.files[0],'food'); });
+document.getElementById('camReport').addEventListener('change',function(e){ handlePic(e.target.files[0],'report'); });
+document.getElementById('camGlucose').addEventListener('change',function(e){ handlePic(e.target.files[0],'glucose'); });
+
+document.getElementById('camFood').click = document.getElementById('camFood').click.bind(document.getElementById('camFood'));
+
+document.getElementById('camFood').parentElement.addEventListener('click',function(){ document.getElementById('camFood').click(); menu.classList.remove('show'); });
+document.getElementById('camReport').parentElement.addEventListener('click',function(){ document.getElementById('camReport').click(); menu.classList.remove('show'); });
+document.getElementById('camGlucose').parentElement.addEventListener('click',function(){ document.getElementById('camGlucose').click(); menu.classList.remove('show'); });
+
+/* === 压缩 + 预览 + 手动解析 modal === */
+function handlePic(file, kind){
+  if(!file) return;
+  compressImg(file,function(dataUrl){ openCamModal(kind,dataUrl); });
+}
+function compressImg(file, cb){
+  var r=new FileReader();
+  r.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var max=800,w=img.width,h=img.height;
+      if(w>max){ h=Math.round(h*max/w); w=max; }
+      var c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      cb(c.toDataURL('image/jpeg',0.82));
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function openCamModal(kind,dataUrl){
+  var modal=document.getElementById('camModal');
+  var body=document.getElementById('camModalBody');
+  var titleMap={food:'拍食物 · 记录这一餐', report:'上传检测/体检报告', glucose:'拍血糖仪读数'};
+  document.getElementById('camModalTitle').textContent=titleMap[kind];
+  var hints={
+    food:'AI 识别暂时未接入 · 请手动补充这一餐',
+    report:'图片已保存到档案 · 以后接 AI 后自动解析',
+    glucose:'请输入血糖仪显示的数值和测量方式'
+  };
+  body.innerHTML='<div class="img-card"><img src="'+dataUrl+'"><div class="hint">'+hints[kind]+'</div></div>';
+
+  if(kind==='food'){
+    body.innerHTML+='<div class="mfield"><label>餐次</label><div class="mchip-row">'+['早餐','午餐','晚餐','加餐'].map(function(x){return '<button class="mchip" data-val="'+x+'">'+x+'</button>';}).join('')+'</div></div>';
+    body.innerHTML+='<div class="mfield"><label>预估热量（kcal）</label><input type="number" id="f-cal" placeholder="如 520"></div>';
+    body.innerHTML+='<div class="mfield"><label>备注（可选）</label><input id="f-note" placeholder="如：米饭半碗 + 西兰花 + 鸡胸肉"></div>';
+  } else if(kind==='report'){
+    body.innerHTML+='<div class="mfield"><label>报告类型</label><div class="mchip-row">'+['体检报告','化验单','检查报告','处方','其他'].map(function(x){return '<button class="mchip" data-val="'+x+'">'+x+'</button>';}).join('')+'</div></div>';
+    body.innerHTML+='<div class="mfield"><label>日期</label><input type="date" id="r-date"></div>';
+    body.innerHTML+='<div class="mfield"><label>关键异常项（AI 接入后自动解析，可手动填）</label><textarea id="r-abn" rows="3" placeholder="如：ALT 182 U/L，血糖 9.05 mmol/L"></textarea></div>';
+  } else {
+    body.innerHTML+='<div class="mfield"><label>测量值</label><input type="number" step="0.1" id="g-val" placeholder="如 6.9"></div>';
+    body.innerHTML+='<div class="mfield"><label>测量时间</label><div class="mchip-row">'+['空腹','餐后2小时','随机'].map(function(x){return '<button class="mchip" data-val="'+x+'">'+x+'</button>';}).join('')+'</div></div>';
+    body.innerHTML+='<div class="mfield"><label>测量方式</label><div class="mchip-row">'+['家用血糖仪','静脉血检测','动态血糖仪'].map(function(x){return '<button class="mchip" data-val="'+x+'">'+x+'</button>';}).join('')+'</div></div>';
+  }
+  body.innerHTML+='<button class="mbtn-primary" id="camSave">保存</button>';
+  body.innerHTML+='<button class="mbtn-ghost" id="camSkip">只存图片不填</button>';
+
+  modal.classList.add('show');
+
+  /* chip 选择 */
+  body.querySelectorAll('.mchip').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var parent=btn.parentElement;
+      parent.querySelectorAll('.mchip').forEach(function(c){ c.classList.remove('on'); });
+      btn.classList.add('on');
+      /* 把选中值同步到隐藏 input（如果有） */
+      var hiddenId=parent.dataset.syncTo;
+      if(hiddenId){ var h=document.getElementById(hiddenId); if(h) h.value=btn.dataset.val; }
+    });
+  });
+
+  document.getElementById('camSave').addEventListener('click',function(){
+    toast('已保存 · 图片 + 数据'); closeCam();
+  });
+  document.getElementById('camSkip').addEventListener('click',function(){
+    toast('图片已保存到档案'); closeCam();
+  });
+}
+
+function closeCam(){ document.getElementById('camModal').classList.remove('show'); }
+document.getElementById('camModalClose').addEventListener('click',closeCam);
+
+function toast(msg){
+  var t=document.createElement('div');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;top:40%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;z-index:500';
+  document.body.appendChild(t); setTimeout(function(){ t.remove(); },1800);
+}
+
+/* === 子项点击：切换状态 === */
+document.querySelectorAll('.sub-item').forEach(function(el){
+  el.addEventListener('click',function(){
+    if(el.classList.contains('done')){ el.classList.remove('done'); el.classList.add('bad'); }
+    else if(el.classList.contains('bad')){ el.classList.remove('bad'); el.classList.add('warn'); }
+    else if(el.classList.contains('warn')){ el.classList.remove('warn'); el.classList.add('done'); }
+    else { el.classList.add('done'); }
+  });
+});
+</script>
+</body></html>
