@@ -266,48 +266,49 @@ function computeSleepHours(asleep, wake){
   if(span<=0 || span>12*60) return null;
   return +(span/60).toFixed(1);
 }
-/* 睡眠：脏腑时段 bar（输入入睡/苏醒时间 → 计算各脏腑时段覆盖） */
+/* 睡眠：脏腑时段 bar（输入入睡/苏醒时间 → 计算各脏腑时段覆盖 + 显示功能） */
 function organBarHtml(asleep, wake){
   var as = parseHM(asleep || '23:00');
   var wk = parseHM(wake || '07:00');
   if(as.h == null) return '';
-  /* 按中医子午流注：胆经 23-1 / 肝经 1-3 / 肺经 3-5 / 大肠经 5-7 / 胃经 7-9...
-     睡眠期间通常覆盖前 3-4 段，每段 2 小时 */
+  /* 按中医子午流注标准：胆 23-1 / 肝 1-3 / 肺 3-5 / 大肠 5-7
+     睡眠通常覆盖全部 4 段 */
   var segments = [
-    {name:'胆经',emoji:'🌙',cls:'seg-gall',   start:23*60,end:1*60+24*60},
-    {name:'肝经',emoji:'🫀',cls:'seg-liver',  start:1*60, end:3*60},
-    {name:'肺经',emoji:'🫁',cls:'seg-lung',   start:3*60, end:5*60},
-    {name:'大肠经',emoji:'💨',cls:'seg-colon',start:5*60, end:7*60}
+    {name:'胆经',   emoji:'🌙', cls:'seg-gall',   start:23*60,   end:1*60+24*60, func:'胆汁排泄 阳气初生'},
+    {name:'肝经',   emoji:'🫀', cls:'seg-liver',  start:1*60,    end:3*60,       func:'藏血解毒 修复再生'},
+    {name:'肺经',   emoji:'🫁', cls:'seg-lung',   start:3*60,    end:5*60,       func:'气血输布 浊气排出'},
+    {name:'大肠经', emoji:'💨', cls:'seg-colon',  start:5*60,    end:7*60,       func:'排便 清理糟粕'}
   ];
   var asMin = as.h*60+as.m;
   var wkMin = wk.h*60+wk.m;
   var span = (wkMin - asMin + 24*60) % (24*60);
   if(span<=0 || span>12*60) return '';
-  /* 补胆经 23-0 那一段如果是跨天的话 */
-  segments[0].start = Math.max(segments[0].start, asMin); /* 裁剪到入睡之后 */
+  segments[0].start = Math.max(segments[0].start, asMin);
   var html = '<div class="sleep-bar">';
-  var coveredZang = [];
+  var covered = []; /* {name, func, time} */
   segments.forEach(function(s){
     var ss=s.start, ee=s.end;
-    /* 把跨天时间（0-6点）统一加 24h 便于比较 */
     if(ss<=60) ss+=24*60;
     if(ee<=60) ee+=24*60;
-    var asMinAdj = asMin>12*60 ? asMin : asMin+24*60; /* 入睡如果在 0-6 点也要+24 */
-    var wkMinAdj = wkMin>12*60 ? wkMin : wkMin+24*60;
-    /* 计算交集 */
-    var overlapStart = Math.max(ss, asMinAdj);
-    var overlapEnd   = Math.min(ee, wkMinAdj);
+    var asAdj = asMin>12*60 ? asMin : asMin+24*60;
+    var wkAdj = wkMin>12*60 ? wkMin : wkMin+24*60;
+    var overlapStart = Math.max(ss, asAdj);
+    var overlapEnd   = Math.min(ee, wkAdj);
     if(overlapStart>=overlapEnd) return;
     var pct = ((overlapEnd-overlapStart)/span*100).toFixed(0);
-    html += '<div class="sleep-seg '+s.cls+'" style="width:'+pct+'%">'+s.emoji+s.name+'</div>';
-    coveredZang.push(s.name + '('+hm(ss%(24*60))+'-'+hm(ee%(24*60))+')');
+    html += '<div class="sleep-seg '+s.cls+'" style="width:'+pct+'%">'+s.emoji+' '+s.name+'</div>';
+    covered.push({ name:s.name, func:s.func, t1:hm(ss%(24*60)), t2:hm(ee%(24*60)) });
   });
   html += '</div>';
-  /* 底部：时间刻度 + 脏腑时段列表 */
+  /* 底部时间刻度 */
   html += '<div class="sleep-labels"><span>'+(asleep||'23:00')+' 入睡</span><span>23-1 胆</span><span>1-3 肝</span><span>3-5 肺</span><span>5-7 肠</span><span>'+(wake||'07:00')+' 醒</span></div>';
-  /* 参与的脏腑时间段小字提示 */
-  if(coveredZang.length){
-    html += '<div class="sleep-zang-info" style="font-size:11px;color:#6b7280;margin-top:6px;line-height:1.5">今晚覆盖 ' + coveredZang.join(' | ') + '</div>';
+  /* 每段脏腑 + 功能描述列表 */
+  if(covered.length){
+    html += '<div class="sleep-zang-list">';
+    covered.forEach(function(c){
+      html += '<div class="sleep-zang-item"><b>'+c.t1+'-'+c.t2+' '+c.name+'</b> · '+c.func+'</div>';
+    });
+    html += '</div>';
   }
   return html;
 }
@@ -2610,7 +2611,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 45;
+var APP_VERSION = 46;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;

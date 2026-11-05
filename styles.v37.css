@@ -753,6 +753,10 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 .mc-num-val{font-size:18px;font-weight:700;color:#1f2937;line-height:1}
 .mod-cell.done .mc-num-val{color:#065f46}
 .sleep-labels{display:flex;font-size:9px;color:#9ca3af;margin-top:3px;justify-content:space-between}
+/* 脏腑功能描述列表 */
+.sleep-zang-list{margin-top:8px;border-top:1px dashed #e5e7eb;padding-top:6px}
+.sleep-zang-item{font-size:11px;color:#4b5563;line-height:1.6;padding:2px 0}
+.sleep-zang-item b{color:#1f2937;font-weight:600}
 
 /* 横滑推荐场景 */
 .hei-wrap{margin-top:8px}
