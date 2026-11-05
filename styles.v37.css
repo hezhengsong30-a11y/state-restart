@@ -757,3 +757,70 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 .cam-menu button{display:block;width:100%;background:none;border:none;text-align:left;padding:10px 12px;font-size:14px;border-radius:6px;cursor:pointer;color:#1f2937}
 .cam-menu button:active{background:#f3f4f6}
 .cam-menu button span{margin-right:6px}
+
+/* ============ v37 补：监测指标 metric-card 全套样式 ============ */
+.metric-grid{display:flex;flex-direction:column;gap:10px}
+.metric-card{
+  background:#fafbfc;border:1px solid var(--border);border-radius:12px;
+  padding:12px 14px;position:relative;transition:border-color .15s;
+}
+.metric-card.metric-glucose{border-left:3px solid #dc2626}
+.metric-card.metric-weight{border-left:3px solid var(--primary)}
+.metric-card.metric-waist{border-left:3px solid #d97706}
+.metric-card.metric-wake{border-left:3px solid #7c3aed}
+
+/* 头部：图标 + 标签 + 右侧参考说明 */
+.metric-head{
+  display:flex;align-items:center;gap:8px;margin-bottom:6px;
+}
+.metric-icon{font-size:1.05rem}
+.metric-label{font-size:.82rem;font-weight:600;color:var(--text);flex:1}
+.metric-ref{font-size:.7rem;color:var(--text-3);font-weight:400}
+
+/* 大数字展示行 */
+.metric-big{
+  font-size:1.55rem;font-weight:700;color:var(--text);line-height:1.15;
+  letter-spacing:-.3px;
+}
+.metric-unit{font-size:.8rem;font-weight:500;color:var(--text-2);margin-left:4px}
+.metric-trend{font-size:.72rem;margin-left:6px;font-weight:600}
+.metric-trend.up{color:#dc2626}
+.metric-trend.down{color:var(--primary)}
+.metric-sub{font-size:.72rem;color:var(--text-3);margin-top:2px}
+
+/* 输入框行 —— 核心重设计 */
+.metric-input{
+  display:flex;align-items:center;gap:8px;margin-top:10px;
+  background:#fff;border:1px solid var(--border);border-radius:10px;
+  padding:0 10px;transition:border-color .15s,box-shadow .15s,background .15s;
+}
+.metric-input:focus-within{
+  border-color:var(--primary);box-shadow:0 0 0 3px rgba(47,125,91,.12);
+  background:#fff;
+}
+.metric-input input{
+  flex:1;border:none;outline:none;background:transparent;
+  padding:10px 0;font-size:.95rem;font-weight:500;color:var(--text);
+  font-family:inherit;min-width:0;
+}
+.metric-input input::placeholder{color:var(--text-3);font-weight:400;font-size:.88rem}
+.metric-input select{
+  border:1px solid var(--border);border-radius:6px;background:#f9fafb;
+  padding:6px 8px;font-size:.8rem;color:var(--text-2);font-family:inherit;
+  flex-shrink:0;cursor:pointer;appearance:none;-webkit-appearance:none;
+  padding-right:22px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;
+}
+.metric-input select:focus{outline:none;border-color:var(--primary);background:#fff}
+.metric-input .munit{
+  font-size:.78rem;color:var(--text-3);font-weight:500;flex-shrink:0;
+  padding-left:4px;border-left:1px solid var(--border);margin-left:2px;
+}
+
+/* 血糖卡特殊：两个 select 并排 */
+.metric-glucose .metric-input{gap:6px}
+.metric-glucose .metric-input select{min-width:0;flex:1}
+
+/* 时间输入单独宽度 */
+.metric-input input[type="time"]{font-weight:600;color:var(--primary);font-size:1rem}
+.metric-input input[type="time"]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer}
