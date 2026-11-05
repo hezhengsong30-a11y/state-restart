@@ -363,11 +363,11 @@ function renderModFeature(feature, t, d){
   if(feature==='kcal'){
     var k = kcalEstimate(d);
     var ringPct = Math.min(100, k.ratio);
+    /* v49 去掉圆环，只留数字卡片 */
     html += '<div class="feat kcal-row">'
-      + '<div class="cal-ring"><svg width="62" height="62"><circle cx="31" cy="31" r="27" stroke="#e5e7eb" stroke-width="5" fill="none"/>'
-      + '<circle cx="31" cy="31" r="27" stroke="#2f7d5b" stroke-width="5" fill="none" stroke-dasharray="169.6" stroke-dashoffset="'+(169.6*(1-ringPct/100)).toFixed(1)+'" stroke-linecap="round"/></svg>'
-      + '<div class="cal-ring-inner"><div class="cal-big">'+ringPct+'%</div><div class="cal-unit">目标</div></div></div>'
-      + '<div class="cal-info"><div class="row"><span>预估摄入</span><span class="val">'+k.total+' <span class="tgt">/ '+k.target+' kcal</span></span></div></div></div>';
+      + '<div class="kcal-num-card"><div class="kcal-tgt">今日目标</div><div class="kcal-target">'+k.target+' <span class="kcal-u">kcal</span></div></div>'
+      + '<div class="kcal-num-card done"><div class="kcal-tgt">预估摄入</div><div class="kcal-target">'+k.total+' <span class="kcal-u">kcal</span></div><div class="kcal-pct">'+ringPct+'%</div></div>'
+      + '</div>';
   } else if(feature==='kcalBurn'){
     var kb = kcalBurnEstimate(d);
     html += '<div class="feat kcal-burn">预估消耗 <b style="color:#2f7d5b">'+kb.burn+'</b> kcal · 步行 '+kb.walkMin+' min';
@@ -375,21 +375,20 @@ function renderModFeature(feature, t, d){
     html += '</div>';
   } else if(feature==='organ'){
     html += '<div class="feat organ-row">';
-    /* 入睡时间：datetime-local（通常是前一天晚上） */
-    html += '<div class="sleep-time-row">'
-      + '<div class="sleep-time-box">'
-      + '<div class="sleep-time-label">🌙 入睡时间</div>'
+    /* 入睡/苏醒：两行，每行一个 datetime-local */
+    html += '<div class="sleep-time-box">'
+      + '<div class="sleep-time-label">🌙 入睡（前一晚）</div>'
       + '<input type="datetime-local" class="asleep-input sleep-dt"'+disMon+' value="'+esc(d.asleepDt||'')+'">'
-      + '</div>'
-      + '<div class="sleep-arrow">→</div>'
-      + '<div class="sleep-time-box">'
-      + '<div class="sleep-time-label">☀️ 苏醒时间</div>'
+      + '</div>';
+    html += '<div class="sleep-time-box" style="margin-top:6px">'
+      + '<div class="sleep-time-label">☀️ 今早苏醒</div>'
       + '<input type="datetime-local" class="wake-input sleep-dt"'+disMon+' value="'+esc(d.wakeDt||'')+'">'
-      + '</div></div>';
-    /* 中间显示睡眠小时数（自动计算） */
-    html += '<div class="sleep-hours-line">睡眠 <b id="sleep-hours-live">'+(computeSleepHours(d.asleepDt||d.asleepTime, d.wakeDt||d.wakeTime)||'—')+'</b> 小时</div>';
-    /* 底部：脏腑时段进度条 */
-    html += '<div class="sleep-zang-topic" style="font-size:11px;color:#9ca3af;margin-top:4px">🌿 今晚脏腑排毒时段</div>';
+      + '</div>';
+    /* 睡眠小时数自动计算 */
+    var shVal = computeSleepHours(d.asleepDt||d.asleepTime, d.wakeDt||d.wakeTime);
+    html += '<div class="sleep-hours-line">睡眠 <b id="sleep-hours-live">'+(shVal!=null?shVal:'—')+'</b> 小时</div>';
+    /* 每晚脏腑排毒时段（标题改了） */
+    html += '<div class="sleep-zang-topic">🌿 每晚脏腑排毒时段</div>';
     html += organBarHtml(d.asleepDt||d.asleepTime, d.wakeDt||d.wakeTime);
     html += '</div>';
   } else if(feature==='scene'){
@@ -2648,7 +2647,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 48;
+var APP_VERSION = 49;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
