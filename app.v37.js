@@ -355,6 +355,10 @@ var HEI_SCENES = [
 ];
 
 function renderModFeature(feature, t, d){
+  /* v47 新加的 datetime-local 需要 disabled 属性，这里自己算 locked */
+  var today = todayStr();
+  var locked = (t>today) || (t===today && isSubmitted(d) && !editing);
+  var disMon = locked ? ' disabled' : '';
   var html = '';
   if(feature==='kcal'){
     var k = kcalEstimate(d);
@@ -2644,7 +2648,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 47;
+var APP_VERSION = 48;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
