@@ -313,9 +313,7 @@ function renderModFeature(feature, t, d){
       + '<div class="cal-ring"><svg width="62" height="62"><circle cx="31" cy="31" r="27" stroke="#e5e7eb" stroke-width="5" fill="none"/>'
       + '<circle cx="31" cy="31" r="27" stroke="#2f7d5b" stroke-width="5" fill="none" stroke-dasharray="169.6" stroke-dashoffset="'+(169.6*(1-ringPct/100)).toFixed(1)+'" stroke-linecap="round"/></svg>'
       + '<div class="cal-ring-inner"><div class="cal-big">'+ringPct+'%</div><div class="cal-unit">目标</div></div></div>'
-      + '<div class="cal-info"><div class="row"><span>预估摄入</span><span class="val">'+k.total+' <span class="tgt">/ '+k.target+' kcal</span></span></div>'
-      + '<div class="row"><span>无酒无甜饮</span><span class="val">'+(k.drink==='yes'?'✓':'—')+'</span></div>'
-      + '<div class="row"><span>不吸烟</span><span class="val">'+(k.smoke==='yes'?'✓':'—')+'</span></div></div></div>';
+      + '<div class="cal-info"><div class="row"><span>预估摄入</span><span class="val">'+k.total+' <span class="tgt">/ '+k.target+' kcal</span></span></div></div></div>';
   } else if(feature==='kcalBurn'){
     var kb = kcalBurnEstimate(d);
     html += '<div class="feat kcal-burn">预估消耗 <b style="color:#2f7d5b">'+kb.burn+'</b> kcal · 步行 '+kb.walkMin+' min';
@@ -977,7 +975,11 @@ function renderToday(){
         if(it.type==='tri'){
           html += '<div class="mc-check" data-tri="'+k+'">'+(triVal==='yes'?'✓':(triVal==='no'?'✕':(skipKey?'—':'')))+'</div>';
         } else if(it.type==='num'){
-          html += '<div class="mc-num">'+(hasNum(d[k])?esc(d[k]):'—')+'</div>';
+          /* 可编辑小输入框 + 单位后缀 */
+          var unit = it.unit || '';
+          var valEsc = esc(d[k]);
+          var disAttr = locked ? ' disabled' : '';
+          html += '<div class="mc-num-input"><input type="number" step="0.1" min="0" data-num="'+k+'" placeholder="—" value="'+valEsc+'"'+disAttr+'><span class="mc-unit">'+esc(unit)+'</span></div>';
         }
         html += '<div class="mc-lbl">'+esc(it.name)+'</div>';
         html += '</div>';
@@ -1462,6 +1464,21 @@ function bindToday(el,d,t){
       if(v==='yes') cell.classList.add('done');
       else if(v==='no') cell.classList.add('bad');
       else if(d.skipped[key]){ cell.classList.add('skip'); box.textContent='—'; }
+    });
+  });
+
+  /* mini-grid 数值输入框（walkMin / sleepH / waterMl 等） */
+  $$('.mc-num-input input[data-num]',el).forEach(function(inp){
+    inp.addEventListener('change',function(){
+      if(locked) return;
+      var k=inp.getAttribute('data-num');
+      var v=inp.value.trim();
+      if(v===''){ delete d[k]; d[k]=''; }
+      else { var n=parseFloat(v); d[k]=isNaN(n)?v:String(n); }
+      flushDraft();
+      /* 更新 cell 的 done 样式 */
+      var cell=inp.closest('.mod-cell');
+      if(cell){ cell.classList.toggle('done', hasNum(d[k])); }
     });
   });
 
@@ -2552,7 +2569,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 42;
+var APP_VERSION = 43;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;

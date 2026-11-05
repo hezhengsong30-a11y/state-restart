@@ -706,7 +706,17 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 .mod-cell.bad .mc-check{background:#dc2626;border-color:#dc2626;color:#fff}
 .mod-cell.skip .mc-check{background:#e5e7eb;border-color:#d1d5db;color:#9ca3af}
 .mod-cell.locked .mc-check{pointer-events:none}
-.mc-num{font-size:18px;font-weight:700;color:#1f2937;margin-bottom:2px}
+.mc-num-input{display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:2px}
+.mc-num-input input{
+  width:42px;height:26px;border:1px solid #d1d5db;border-radius:6px;background:#fff;
+  text-align:center;font-size:14px;font-weight:600;color:var(--text);font-family:inherit;
+  padding:0 2px;transition:border-color .12s;
+}
+.mc-num-input input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px rgba(47,125,91,.1)}
+.mc-num-input input:disabled{background:#f3f4f6;color:#9ca3af;cursor:not-allowed}
+.mc-unit{font-size:10px;color:#9ca3af;font-weight:500;flex-shrink:0}
+.mod-cell.done .mc-num-input input{border-color:#a7f3d0;background:#ecfdf5;color:#065f46}
+.mod-cell.locked .mc-num-input{opacity:.7}
 .mc-lbl{font-size:11px;color:#4b5563}
 .mod-cell.done .mc-lbl{color:#065f46}
 .mod-cell.bad .mc-lbl{color:#991b1b}
