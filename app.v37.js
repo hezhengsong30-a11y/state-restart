@@ -281,6 +281,8 @@ function computeSleepHours(asleep, wake){
     var aMs = new Date(as.y, as.mo-1, as.d, as.h, as.m).getTime();
     var wMs = new Date(wk.y, wk.mo-1, wk.d, wk.h, wk.m).getTime();
     span = (wMs - aMs) / 60000;
+    /* 兜底：如果 ms 差为负（同日期但入睡晚于苏醒），补 24h */
+    if(span<=0){ span += 24*60; }
   } else {
     /* 只有时间 → 按跨天算（默认苏醒是入睡之后的下一次出现） */
     span = ((wk.h*60+wk.m) - (as.h*60+as.m) + 24*60) % (24*60);
@@ -876,11 +878,24 @@ function renderToday(){
     : (idx<1 ? {focus:'计划尚未开始（10月20日开始）', walk:''}
     : {focus:'30天计划已结束，继续保持已养成的习惯', walk:'舒适步行'});
   var d = getDay(t);
-  /* v47 旧数据迁移：如果有旧 HH:MM 格式的 asleepTime/wakeTime 但没新的 asleepDt/wakeDt，自动转 */
-  if(!d.asleepDt && d.asleepTime){ d.asleepDt = t + 'T' + d.asleepTime; }
-  if(!d.wakeDt && d.wakeTime){ d.wakeDt = t + 'T' + d.wakeTime; }
-  if(!d.asleepDt){ d.asleepDt = t + 'T23:00'; } /* 默认值让 input 不空 */
-  if(!d.wakeDt){ d.wakeDt = t + 'T07:00'; }
+  /* v47 旧数据迁移 + v49 强制修正同日期错误 */
+  var yday = addDays(t, -1);
+  var needFix = false;
+  if(!d.asleepDt && d.asleepTime){ d.asleepDt = yday + 'T' + d.asleepTime; needFix=true; }
+  if(!d.wakeDt && d.wakeTime){ d.wakeDt = t + 'T' + d.wakeTime; needFix=true; }
+  /* v49 兜底：如果同日期（之前错误迁移或用户手动选了同一日期），把 asleepDt 修正为前一天 */
+  if(d.asleepDt && d.wakeDt){
+    var pa = parseHM(d.asleepDt), pw = parseHM(d.wakeDt);
+    if(pa.y && pw.y && pa.y===pw.y && pa.mo===pw.mo && pa.d===pw.d){
+      /* 同日期 → 把 asleepDt 的日期往前推一天 */
+      var newDate = addDays(d.asleepDt.slice(0,10), -1);
+      d.asleepDt = newDate + 'T' + d.asleepDt.slice(11);
+      needFix = true;
+    }
+  }
+  if(!d.asleepDt){ d.asleepDt = yday + 'T23:00'; needFix=true; }
+  if(!d.wakeDt){ d.wakeDt = t + 'T07:00'; needFix=true; }
+  if(needFix){ save(); }
   /* 收集所有历史空腹血糖（跨日期）用于今日页一览 */
   var histFasting=[];
   Object.keys(DB.days).sort().forEach(function(ds){
@@ -2647,7 +2662,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 49;
+var APP_VERSION = 50;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
