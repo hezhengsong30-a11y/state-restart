@@ -1290,7 +1290,8 @@ function bindFolds(el){
 
 function bindToday(el,d,t){
   var today=todayStr(), future=(t>today);
-  var submitted = isSubmitted(t), editing = uiState.tips[t]===true;
+  var submitted = isSubmitted(t);
+  /* 注意：editing / viewDate 是页面级全局变量，bindToday 内直接引用 */
   var locked = future || (t===today && submitted && !editing);
   var viewing = t;
   function flushDraft(){
@@ -1350,8 +1351,9 @@ function bindToday(el,d,t){
     });
   });
 
-  /* 三态勾选 */
+  /* 三态勾选（极简版 num-row 等旧版 tri，mini-grid 的 mc-check 由下方专门处理） */
   $$('[data-tri]',el).forEach(function(box){
+    if(box.classList.contains('mc-check')) return; /* mini-grid 由下方 .mc-check 单独绑 */
     box.addEventListener('click',function(){
       collectFields(el,d);
       var k=box.getAttribute('data-tri');
@@ -2550,7 +2552,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 41;
+var APP_VERSION = 42;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
