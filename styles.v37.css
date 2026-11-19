@@ -748,6 +748,18 @@ button.chip.on{background:var(--primary-light);border-color:var(--primary);color
 .mc-num-readonly{display:flex;flex-direction:column;align-items:center;margin-bottom:2px}
 .mc-num-val{font-size:18px;font-weight:700;color:#1f2937;line-height:1}
 .mod-cell.done .mc-num-val{color:#065f46}
+/* mini-grid 时间 select */
+.mc-time-row{display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:2px}
+.mc-time-sel{
+  width:38px;height:26px;border:1px solid #d1d5db;border-radius:6px;background:#fff;
+  font-size:12px;font-weight:700;color:#1f2937;text-align:center;font-family:inherit;
+  padding:0;appearance:none;
+  background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3e%3cpath d='M0 0l4 5 4-5z' fill='%239ca3af'/%3e%3c/svg%3e");
+  background-repeat:no-repeat;background-position:right 3px center;padding-right:12px;
+}
+.mc-time-sel:focus{outline:none;border-color:var(--primary)}
+.mc-time-sel:disabled{background:#f3f4f6;color:#9ca3af}
+.mc-time-colon{font-size:12px;font-weight:700;color:#6b7280;flex-shrink:0}
 .sleep-labels{display:flex;font-size:9px;color:#9ca3af;margin-top:3px;justify-content:space-between}
 .sleep-zang-list{margin-top:8px;border-top:1px dashed #e5e7eb;padding-top:6px}
 .sleep-zang-item{font-size:11px;color:#4b5563;line-height:1.6;padding:2px 0}

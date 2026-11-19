@@ -129,6 +129,7 @@ var ITEMS = [
   {key:'noAlcoholSweet',  name:'无酒无甜饮', type:'tri'},
   {key:'noSmoke',         name:'不吸烟',    type:'tri'},
   {key:'walkMin',         name:'步行',      type:'num', unit:'分钟'},
+  {key:'walkEndTime',     name:'截止运动',   type:'time', optional:true},
   {key:'sleepH',          name:'睡眠',      type:'num', unit:'小时'},
   {key:'waterMl',         name:'饮水',      type:'num', unit:'毫升'},
   {key:'sedentaryBreaks', name:'久坐中断',   type:'tri'},
@@ -149,7 +150,7 @@ ITEMS_TCM.forEach(function(it){ ITEM_MAP[it.key]=it; });
 
 var ITEMS_GROUPS = [
   { key:'diet',     emoji:'🍱', title:'饮食 · 管住嘴',   keys:['dietOk','noAlcoholSweet','noSmoke','waterMl'],  side:'饮食规律 / 无酒无甜饮 / 不吸烟 / 饮水', feature:'kcal' },
-  { key:'exercise', emoji:'🏃', title:'运动 · 迈开腿',   keys:['walkMin','sedentaryBreaks'],                   side:'步行 / 久坐起身',                  feature:'kcalBurn' },
+  { key:'exercise', emoji:'🏃', title:'运动 · 迈开腿',   keys:['walkMin','walkEndTime','sedentaryBreaks'],  side:'步行 / 最晚截止时间 / 久坐起身',    feature:'kcalBurn' },
   { key:'sleep',    emoji:'😴', title:'睡眠 · 养气血',   keys:['sleepH','relax'],                              side:'睡眠时长 / 放松',                  feature:'organ' },
   { key:'tcm',      emoji:'🌿', title:'调理 · 中医扶正', keys:['acupoint','moxa'],                             side:'气海·太冲 / 艾灸',                  feature:'scene' }
 ];
@@ -462,8 +463,9 @@ function blankDay(){
     dietOk: undefined, noAlcoholSweet: undefined, noSmoke: undefined, sedentaryBreaks: undefined, relax: undefined,
     sleepRest: undefined,
     skipped: {},
-    waterMl:'', walkMin:'', sleepH:'',
-    wakeTime:'', weight:'', waist:'',
+    waterMl:'', walkMin:'', walkEndTime:'', sleepH:'',
+    asleepTime:'23:00', asleepOffset:-1, wakeOffset:0,
+    wakeTime:'07:00', weight:'', waist:'',
     stress:'', mood:'', oneLine:'', did:'', tomorrow:'', note:'',
     glucose:[],
     done: undefined, submitTime:'', draftSavedAt:''
@@ -1075,13 +1077,13 @@ function renderToday(){
         var triVal = triKey ? triOf(d,triKey) : null;
         var cellCls = 'mod-cell';
         if(it.type==='tri'){
-          cellCls += (triVal==='yes'?' done':(triVal==='no'?' bad':(skipKey?' skip':'')));
+          cellCls += (triVal==='yes'?' done':' bad');
         } else if(it.type==='num'){
           cellCls += (hasNum(d[k])?' done':'');
         }
         html += '<div class="'+cellCls+'">';
         if(it.type==='tri'){
-          html += '<div class="mc-check" data-tri="'+k+'">'+(triVal==='yes'?'✓':(triVal==='no'?'✕':(skipKey?'—':'')))+'</div>';
+          html += '<div class="mc-check" data-tri="'+k+'">'+(triVal==='yes'?'✓':'✕')+'</div>';
         } else if(it.type==='num'){
           if(k==='sleepH'){
             /* 睡眠小时自动从入睡/苏醒时间计算，只读显示 */
@@ -1096,6 +1098,21 @@ function renderToday(){
             var disAttr = locked ? ' disabled' : '';
             html += '<div class="mc-num-input"><input type="number" step="0.1" min="0" data-num="'+k+'" placeholder="—" value="'+valEsc+'"'+disAttr+'><span class="mc-unit">'+esc(unit)+'</span></div>';
           }
+        } else if(it.type==='time'){
+          /* 时间选择：HH + MM 两个小 select */
+          var disAttr2 = locked ? ' disabled' : '';
+          var tmPa = parseHM(d[k] || '');
+          var tmHh = tmPa.h != null ? tmPa.h : 21;
+          var tmMm = tmPa.m != null ? tmPa.m : 0;
+          var hOpts = '';
+          for(var hh=0; hh<24; hh++){ var hv=hh<10?'0'+hh:''+hh; hOpts += '<option value="'+hv+'"'+(hh===tmHh?' selected':'')+'>'+hv+'</option>'; }
+          var mOpts = '';
+          for(var mm=0; mm<60; mm+=5){ var mv=mm<10?'0'+mm:''+mm; mOpts += '<option value="'+mv+'"'+(mm===tmMm?' selected':'')+'>'+mv+'</option>'; }
+          html += '<div class="mc-time-row">'
+            + '<select class="mc-time-sel mc-time-hh" data-time="'+k+'"'+disAttr2+'>'+hOpts+'</select>'
+            + '<span class="mc-time-colon">:</span>'
+            + '<select class="mc-time-sel mc-time-mm" data-time="'+k+'"'+disAttr2+'>'+mOpts+'</select>'
+            + '</div>';
         }
         html += '<div class="mc-lbl">'+esc(it.name)+'</div>';
         html += '</div>';
@@ -1554,26 +1571,21 @@ function bindToday(el,d,t){
     renderToday(); toast('今日行动已全部标记跳过 ✓');
   });
 
-  /* mini-grid 三态点击（标准版四模块分组里的 ✓/✕/— 小方块） */
+  /* mini-grid 两态点击（✓/✕，undefined 也按 ✕ 显示） */
   $$('.mc-check',el).forEach(function(box){
     box.addEventListener('click',function(){
       if(locked && viewing===todayStr()) { toast('已提交 · 请点底部「修改」解锁'); return; }
       var key=box.getAttribute('data-tri');
-      d.skipped = d.skipped || {};
       var cur = d[key];
-      /* 循环切换：undefined → true → false → undefined 同时清除 skip */
-      if(cur===undefined){ d[key]=true; delete d.skipped[key]; }
-      else if(cur===true){ d[key]=false; delete d.skipped[key]; }
-      else { d[key]=undefined; delete d.skipped[key]; }
+      /* 两态循环：undefined/true → false → true → false ... */
+      if(cur===true){ d[key]=false; }
+      else { d[key]=true; }
       flushDraft();
-      /* 只更新该 cell 的样式，不整页重绘 */
       var cell=box.parentElement;
-      cell.classList.remove('done','bad','skip');
+      cell.classList.remove('done','bad');
       var v=triOf(d,key);
-      box.textContent = v==='yes'?'✓':(v==='no'?'✕':'');
-      if(v==='yes') cell.classList.add('done');
-      else if(v==='no') cell.classList.add('bad');
-      else if(d.skipped[key]){ cell.classList.add('skip'); box.textContent='—'; }
+      box.textContent = v==='yes'?'✓':'✕';
+      cell.classList.add(v==='yes'?'done':'bad');
     });
   });
 
@@ -1586,9 +1598,22 @@ function bindToday(el,d,t){
       if(v===''){ delete d[k]; d[k]=''; }
       else { var n=parseFloat(v); d[k]=isNaN(n)?v:String(n); }
       flushDraft();
-      /* 更新 cell 的 done 样式 */
       var cell=inp.closest('.mod-cell');
       if(cell){ cell.classList.toggle('done', hasNum(d[k])); }
+    });
+  });
+
+  /* mini-grid 时间 select（walkEndTime 等） */
+  $$('.mc-time-sel',el).forEach(function(sel){
+    sel.addEventListener('change',function(){
+      if(locked) return;
+      var k=sel.getAttribute('data-time');
+      var row=sel.closest('.mc-time-row');
+      if(!row||!k) return;
+      var hhSel=row.querySelector('.mc-time-hh'), mmSel=row.querySelector('.mc-time-mm');
+      var hh=hhSel?hhSel.value:'21', mm=mmSel?mmSel.value:'00';
+      d[k]=hh+':'+mm;
+      flushDraft();
     });
   });
 
@@ -1888,13 +1913,6 @@ function renderTrend(){
     html += weekBlock(w, w===curW);
   }
   html += '<div class="chart-note">颜色：深绿=已打卡，浅绿=已有草稿，灰=未记录。</div></div>';
-
-  /* 腰围 */
-  if(waists.length>0){
-    html += '<div class="card"><div class="card-title">腰围记录</div>';
-    waists.forEach(function(r){ html += '<div class="glucose-item"><span class="val">'+r.y+' cm</span><span class="tag">'+dateLabel(r.x)+'</span></div>'; });
-    html += '<div class="chart-note">基线 '+esc(DB.baseline.waist.value||'—')+' cm · '+esc(baseMeta(DB.baseline.waist))+'</div></div>';
-  }
 
   html += '<div class="notice">30天看三件事：<b>习惯能否坚持、精神睡眠是否改善、体重血糖趋势如何</b>——不要求每天数字都下降。数据不足时显示「记录积累中」，不自动生成健康结论。</div>';
 
@@ -2694,7 +2712,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 54;
+var APP_VERSION = 55;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
