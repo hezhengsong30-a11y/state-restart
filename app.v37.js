@@ -1081,9 +1081,10 @@ function renderToday(){
         } else if(it.type==='num'){
           cellCls += (hasNum(d[k])?' done':'');
         }
+        if(locked){ cellCls += ' locked'; }
         html += '<div class="'+cellCls+'">';
         if(it.type==='tri'){
-          html += '<div class="mc-check" data-tri="'+k+'">'+(triVal==='yes'?'✓':'✕')+'</div>';
+          html += '<div class="mc-check" data-tri="'+k+'"'+(locked?' tabindex="-1"':'')+'>'+(triVal==='yes'?'✓':'✕')+'</div>';
         } else if(it.type==='num'){
           if(k==='sleepH'){
             /* 睡眠小时自动从入睡/苏醒时间计算，只读显示 */
@@ -1161,9 +1162,9 @@ function renderToday(){
     + '</div>'
     + (todayFasting.length?('<div class="metric-sub">'+esc(todayFasting[0].method||'家用血糖仪')+'</div>'):'')
     + '<div class="metric-input">'
-    + '<input type="number" step="0.1" id="g-value" placeholder="测了就填" value="'+esc(gVal||'')+'">'
-    + '<select id="g-timing" style="min-width:72px">'+G_TIMINGS.map(function(x){return '<option'+(x==='空腹'?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
-    + '<select id="g-method" style="min-width:96px"><option value="">方式</option>'
+    + '<input type="number" step="0.1" id="g-value" placeholder="测了就填"'+disMon+' value="'+esc(gVal||'')+'">'
+    + '<select id="g-timing" style="min-width:72px"'+disMon+'>'+G_TIMINGS.map(function(x){return '<option'+(x==='空腹'?' selected':'')+'>'+x+'</option>';}).join('')+'</select>'
+    + '<select id="g-method" style="min-width:96px"'+disMon+'><option value="">方式</option>'
     + ['家用血糖仪','静脉血检测','动态血糖仪'].map(function(x){ return '<option>'+x+'</option>'; }).join('')
     + '</select>'
     + '</div>'
@@ -2712,7 +2713,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 55;
+var APP_VERSION = 56;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
