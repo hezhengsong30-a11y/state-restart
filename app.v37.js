@@ -1030,15 +1030,6 @@ function renderToday(){
     }
   }
   if(plan.weigh){ html += '<div class="notice" style="margin-bottom:12px">⚖️ 今天建议<b>同条件称重</b>（晨起、如厕后、早餐前），并记录体重／腰围。</div>'; }
-  /* 就诊提醒（P0）：健康档案里有「报告建议就诊」标注且未归档的问题 */
-  if(isToday){
-    var careIssues = (DB.issues||[]).filter(function(i){ return i.seekCare && !i.archived; });
-    if(careIssues.length && DB.settings.dismissedCareAt!==today){
-      html += '<div class="banner care"><div class="banner-txt">🏥 就诊提醒：'+esc(careIssues.map(function(i){return i.name;}).join('、'))
-        + '。请按体检报告建议尽快到专科就诊——打卡不能替代就医。</div>'
-        + '<button class="banner-x" id="btn-view-care">查看</button><button class="banner-x" id="btn-dismiss-care">✕</button></div>';
-    }
-  }
   if(future){ html += '<div class="notice" style="margin-bottom:12px">🔒 该日期尚未到来，仅可查看计划，不能填写或提交。</div>'; }
   if(isToday && submitted && !editing){ html += '<div class="notice" style="margin-bottom:12px">✅ 今日已打卡 · '+esc(d.submitTime||'')+'。如需更正，点底部「修改」。</div>'; }
 
@@ -1057,9 +1048,6 @@ function renderToday(){
   html += '<div class="card"><div class="card-title">今日行动';
   if(!busy){ html += ' <span class="sub">标准版 8 项 · 四模块分组</span>'; }
   else { html += ' <span class="sub">极简版 4 项</span>'; }
-  if(!submitted){
-    html += '<button class="btn ghost small" id="btn-skip-all" title="出差/生病等特殊情况，一键标记全部跳过">今日特殊 · 全部跳过</button>';
-  }
   html += '</div>';
 
   if(!busy){
@@ -1283,12 +1271,8 @@ function actionTri(dateStr,key,label,hint,locked,optional){
 }
 function triLegend(key,optional,locked){
   if(locked) return '';
-  var d0=getDay(viewDate);
-  var skipped=d0.skipped&&d0.skipped[key];
-  var lg='<div class="tri-hint">连点方框切换：未记录 → 完成 → 未完成'
-    + (skipped?' <b style="color:var(--primary)">已跳过</b>':'')+'</div>';
-  if(optional) lg += '<button class="link-btn" data-skip="'+key+'">'+(skipped?'取消跳过':'今日跳过')+'</button>';
-  return lg;
+  var hint = optional ? '可选行动：不填不算未完成' : '点击方框切换 ✓/✕';
+  return '<div class="tri-hint">'+hint+'</div>';
 }
 /* 数值型行动行 */
 function actionNum(dateStr,key,label,unit,ph,locked,extra){
@@ -1444,17 +1428,6 @@ function bindToday(el,d,t){
   if(next) next.addEventListener('click',function(){ viewDate=addDays(viewDate,1); editing=false; renderToday(); window.scrollTo(0,0); });
   if(back) back.addEventListener('click',function(){ viewDate=todayStr(); editing=false; renderToday(); window.scrollTo(0,0); });
 
-  /* 就诊提醒横幅 */
-  var vc=$('#btn-view-care',el);
-  if(vc) vc.addEventListener('click',function(){
-    var tab=$$('.tab').filter(function(b){ return b.getAttribute('data-tab')==='archive'; })[0];
-    if(tab) tab.click();
-  });
-  var dc=$('#btn-dismiss-care',el);
-  if(dc) dc.addEventListener('click',function(){
-    DB.settings.dismissedCareAt=todayStr(); save(); renderToday();
-  });
-
   if(future) return;   // 未来日期只读查看
 
   /* 进入可编辑状态后才真正落库，避免浏览日期就产生空记录 */
@@ -1494,17 +1467,6 @@ function bindToday(el,d,t){
       save(); renderToday();
     });
   });
-  /* 今日跳过 */
-  $$('[data-skip]',el).forEach(function(b){
-    b.addEventListener('click',function(){
-      collectFields(el,d);
-      var k=b.getAttribute('data-skip');
-      d.skipped=d.skipped||{};
-      if(d.skipped[k]) delete d.skipped[k]; else { d.skipped[k]=true; delete d[k]; }
-      save(); renderToday();
-    });
-  });
-
   /* 快捷累加 */
   $$('[data-add]',el).forEach(function(b){
     b.addEventListener('click',function(){
@@ -1556,20 +1518,6 @@ function bindToday(el,d,t){
   if(btnDraft) btnDraft.addEventListener('click',function(){
     if(flushDraft()) toast('草稿已保存 · '+d.draftSavedAt);
     else toast('保存失败，请重试');
-  });
-
-  /* P1-11 一键全部 skip（出差/生病） */
-  var btnSkipAll=$('#btn-skip-all',el);
-  if(btnSkipAll) btnSkipAll.addEventListener('click',function(){
-    if(!confirm('确认今天所有行动项都标记为跳过？\n（血糖/体重等监测数据不受影响）')) return;
-    var keys = dayModeKeys(d);
-    keys.forEach(function(k){
-      d.skipped = d.skipped || {};
-      d.skipped[k] = true;
-      delete d[k];
-    });
-    flushDraft();
-    renderToday(); toast('今日行动已全部标记跳过 ✓');
   });
 
   /* mini-grid 两态点击（✓/✕，undefined 也按 ✕ 显示） */
@@ -2837,7 +2785,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 57;
+var APP_VERSION = 58;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
