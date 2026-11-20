@@ -1717,22 +1717,26 @@ function syncNumStates(el,d){
 /* ============ 计划页 ============ */
 function renderPlan(){
   var el=$('#page-plan');
+  var cs=cycleStart(), ce=cycleEnd(), tot=cycleTotal();
   var t=todayStr(), todayIdx=dayIndex(t);
-  var html='<div class="notice" style="margin-bottom:12px">周期：<b>'+CYCLE+'</b>（共 30 天）。漏掉的任务不用补做；当天已经做过但忘记记录的，可以补记。<br><b>点击任意一天可查看；未来日期可查看但不能提交。</b></div>';
+  var cycleDone = todayIdx>tot;
+  var html='<div class="notice" style="margin-bottom:12px">周期：<b>'+cycleLabel()+'</b>（共 '+tot+' 天）。漏掉的任务不用补做；当天已经做过但忘记记录的，可以补记。<br><b>点击任意一天可查看；未来日期可查看但不能提交。</b></div>';
+  if(cycleDone){
+    html += '<div class="cycle-expired-banner">🎉 本周期已结束 · 数据完整保留<br><button class="btn-primary" id="btn-new-cycle" style="margin-top:10px">📋 从今天开始新一轮 30 天</button></div>';
+  }
   var lastWeek=0;
-  for(var i=0;i<TOTAL;i++){
+  for(var i=0;i<tot;i++){
     var week=weekOfIdx(i+1);
     if(week!==lastWeek){
-      var rg=weekRange(week);
+      var rg=weekRange(week, cs);
       html += '<div class="week-sep">第 '+week+' 周（'+dateLabel(rg[0])+'–'+dateLabel(rg[1])+'）</div>';
       lastWeek=week;
     }
-    var dateStr=addDays(START,i);
-    var p=PLAN[i];
+    var dateStr=addDays(cs,i);
+    var p=PLAN[i] || {focus:'（第 '+(i+1)+' 天 · 新周期）', walk:'按当前状态延续'};
     var rec=DB.days[dateStr];
     var state = dateStr>t ? '未开始' : (isSubmitted(rec)?'已打卡' : (dayHasContent(rec)?'已有草稿':'待记录'));
     var cls='plan-item'+(isSubmitted(rec)?' done':'')+((i+1)===todayIdx?' today':'')+(p.review?' review':'')+' editable';
-    /* 四模块 emoji 速览：根据 PLAN[i] 里的 focus 文本和 p 的 walking 推断 */
     var gMod = planModuleGlyphs(p);
     html += '<div class="'+cls+'" data-goto-date="'+dateStr+'"><div class="d">'+(i+1)+'</div><div class="info">'
       + '<div class="focus">'+esc(p.focus)+'</div>'
@@ -1753,6 +1757,11 @@ function renderPlan(){
       document.querySelector('.tab[data-tab="today"]').click();
     });
   });
+  /* 绑定「新周期」按钮 */
+  var btn=$('#btn-new-cycle',el);
+  if(btn){
+    btn.addEventListener('click',startNewCycle);
+  }
 }
 /* 根据当天 PLAN 的 focus 文本推断四模块覆盖，输出 emoji 速览 */
 function planModuleGlyphs(p){
@@ -1771,11 +1780,33 @@ function stateCls(s){
   return s==='已打卡'?'done':(s==='已有草稿'?'draft':(s==='未开始'?'future':'todo'));
 }
 
+/* 开始新一轮 30 天周期：把当前周期归档到 cycles[1+]，新建 cycles[0] */
+function startNewCycle(){
+  var t = todayStr();
+  var cs = cycleStart(), ce = cycleEnd();
+  var tmr = addDays(t, 29);
+  var name = t.split('-')[0]+'年'+(+t.split('-')[1])+'月'+(+t.split('-')[2])+'日起 · 新一轮30天';
+  var newCyc = { id: (DB.cycles&&DB.cycles[0]?DB.cycles[0].id+1:2), start:t, end:tmr, name:name, reviewDate:tmr, active:true };
+  DB.cycles = DB.cycles || [];
+  /* 把当前 active 归档 */
+  DB.cycles.forEach(function(c){ c.active=false; });
+  DB.cycles.unshift(newCyc);
+  /* 保留旧 quarterGoal 不动（趋势不受周期影响），但可以给个新的 */
+  save();
+  toast('✅ 新周期已开始：'+t+' → '+tmr);
+  viewDate = t;
+  editing = false;
+  renderAll();
+}
+
 /* ============ 趋势页 ============ */
+/* 趋势页全局视图状态：'day'(默认最近30天) | 'week'(当周平均) | 'month'(当月平均) */
+window.__trendView = window.__trendView || 'day';
 function renderTrend(){
   var el=$('#page-trend');
   var t=todayStr();
-  var dates=Object.keys(DB.days).filter(function(ds){ var i=dayIndex(ds); return i>=1&&i<=TOTAL; }).sort();
+  /* 趋势数据不受周期限制 —— 读全量，后续按视图聚合 */
+  var allDates=Object.keys(DB.days).filter(function(ds){ return ds<=t; }).sort();
 
   var walkSum=0,walkN=0,sleepSum=0,sleepN=0,waterN=0,waterSum=0;
   var smokeY=0,smokeN=0,alcoY=0,alcoN=0,dietY=0,dietN=0;
@@ -1785,7 +1816,7 @@ function renderTrend(){
   var gSeries={};
   G_TIMINGS.forEach(function(x){ gSeries[x]=[]; });
 
-  dates.forEach(function(ds){
+  allDates.forEach(function(ds){
     var d=DB.days[ds];
     if(hasNum(d.walkMin)){ walkSum+=num(d.walkMin); walkN++; }
     if(hasNum(d.sleepH)){ sleepSum+=num(d.sleepH); sleepN++; }
@@ -1843,9 +1874,9 @@ function renderTrend(){
   html += '<div class="stat-group">';
   html += '<div class="stat-group-title">🍱 饮食 · 管住嘴</div>';
   html += '<div class="stat-grid">'
-    + statCell(dietY,'饮食规律 天数',dates.length?('已记录 '+dietY+'/'+(dietY+dietN)):'待开始')
-    + statCell(alcoY,'无酒无甜饮 天数',dates.length?('已记录 '+alcoY+'/'+(alcoY+alcoN)):'待开始')
-    + statCell(smokeY,'不吸烟 天数',dates.length?('已记录 '+smokeY+'/'+(smokeY+smokeN)):'待开始')
+    + statCell(dietY,'饮食规律 天数',allDates.length?('已记录 '+dietY+'/'+(dietY+dietN)):'待开始')
+    + statCell(alcoY,'无酒无甜饮 天数',allDates.length?('已记录 '+alcoY+'/'+(alcoY+alcoN)):'待开始')
+    + statCell(smokeY,'不吸烟 天数',allDates.length?('已记录 '+smokeY+'/'+(smokeY+smokeN)):'待开始')
     + statCell(waterN?Math.round(waterSum/waterN):'记录积累中','日均饮水 毫升',waterN?('基于 '+waterN+' 天记录'):'暂无记录')
     + '</div>';
   html += '</div>';
@@ -1890,6 +1921,13 @@ function renderTrend(){
     + '标准版与极简版分别统计，不混用同一个完成率。'
     + '「当日模式目标完成天」= 当天所选模式的各项都达到完成或已记录的天数。</div>';
 
+  /* 视图切换按钮：日（最近30天）/ 周（当周平均）/ 月（当月平均） */
+  html += '<div class="trend-view-toggle" id="trendViewToggle">'
+    + '<button data-view="day" class="'+(window.__trendView==='day'?'active':'')+'">日 · 近30天</button>'
+    + '<button data-view="week" class="'+(window.__trendView==='week'?'active':'')+'">周 · 当周均值</button>'
+    + '<button data-view="month" class="'+(window.__trendView==='month'?'active':'')+'">月 · 当月均值</button>'
+    + '</div>';
+
   /* 体重 */
   html += '<div class="card"><div class="card-title">体重趋势 <span class="sub">只统计每日记录，基线单独列出</span></div>';
   if(weights.length<2){ html += '<div class="empty">记录积累中：至少两次每日称重后显示趋势</div>'; }
@@ -1919,21 +1957,107 @@ function renderTrend(){
 
   el.innerHTML=html;
 
-  if($('#ch-weight',el)){
-    /* 体重基线：用户明确的三月目标（不管当前数据在什么位置，强制画出） */
-    var qg2 = resolveQuarterGoal();
-    var wHLines = [];
-    if(qg2 && qg2.targetWeight!=null){ wHLines.push({ y:qg2.targetWeight, color:'#2f7d5b', label:'三月目标 '+qg2.targetWeight+'kg' }); }
-    drawLine($('#ch-weight',el),[ {points:weights,color:'#2f7d5b'} ],'kg',wHLines);
+  /* 视图切换按钮绑定 */
+  var tog = $('#trendViewToggle', el);
+  if(tog){
+    tog.querySelectorAll('button').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var v = btn.getAttribute('data-view');
+        if(window.__trendView === v) return;
+        window.__trendView = v;
+        /* 重渲按钮高亮（不整页重渲） */
+        tog.querySelectorAll('button').forEach(function(b){ b.classList.toggle('active', b===btn); });
+        /* 重绘两个 canvas */
+        redrawTrendCharts();
+      });
+    });
   }
-  if($('#ch-glucose',el)){
-    var fastingPoints=(gSeries['空腹']||[]).slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
-    var series=[{points:fastingPoints, color:G_COLORS['空腹']}];
-    /* 血糖：正常范围 3.9-6.1 区间带（半透明绿色），用户目标是降到正常范围 */
-    var gBand=[{ min:3.9, max:6.1, color:'rgba(47,125,91,0.14)', label:'空腹正常范围' }];
-    drawLine($('#ch-glucose',el),series,'mmol/L',null,gBand);
-  }
+
+  /* 用闭包缓存原始数据，redrawTrendCharts 直接用 */
+  window.__trendCache = { weights: weights, gSeries: gSeries };
+  redrawTrendCharts();
   bindWeeks(el);
+}
+
+/* 根据当前视图聚合 + 重绘体重/血糖两个 canvas */
+function redrawTrendCharts(){
+  var el=$('#page-trend'); if(!el) return;
+  var view = window.__trendView || 'day';
+  var cache = window.__trendCache; if(!cache) return;
+  var qg2 = resolveQuarterGoal();
+  var wHLines = [];
+  if(qg2 && qg2.targetWeight!=null){ wHLines.push({ y:qg2.targetWeight, color:'#2f7d5b', label:'三月目标 '+qg2.targetWeight+'kg' }); }
+  /* 体重 */
+  var cw = $('#ch-weight', el);
+  if(cw && cache.weights.length>=2){
+    var wPts = aggTrendPoints(cache.weights, view);
+    drawLine(cw, [ {points:wPts,color:'#2f7d5b'} ], 'kg', wHLines);
+  }
+  /* 血糖（空腹） */
+  var cg = $('#ch-glucose', el);
+  var fasting = (cache.gSeries['空腹']||[]).slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
+  if(cg && fasting.length>=1){
+    var gPts = aggTrendPoints(fasting, view);
+    var gBand=[{ min:3.9, max:6.1, color:'rgba(47,125,91,0.14)', label:'空腹正常范围' }];
+    drawLine(cg, [{points:gPts, color:G_COLORS['空腹']}], 'mmol/L', null, gBand);
+  }
+}
+
+/* 聚合趋势 points：day=最近30天原始值；week=按 ISO 周编号取均值；month=按 yyyy-MM 取均值 */
+function aggTrendPoints(points, view){
+  if(!points || !points.length) return [];
+  var t = todayStr();
+  var sorted = points.slice().sort(function(a,b){ return a.x<b.x?-1:a.x>b.x?1:0; });
+  if(view === 'day'){
+    /* 最近 30 天（含今天） */
+    var cutoff = addDays(t, -29);
+    return sorted.filter(function(p){ return p.x >= cutoff && p.x <= t; });
+  }
+  if(view === 'week'){
+    /* 按 ISO 周分组，取每组均值，label 用 "WXX" */
+    var map = {};
+    sorted.forEach(function(p){
+      var wk = isoWeek(p.x);
+      var key = p.x.slice(0,4)+'-W'+(wk<10?'0':'')+wk;
+      if(!map[key]) map[key] = { sum:0, n:0, xs:[], ys:[] };
+      map[key].sum += p.y; map[key].n++; map[key].xs.push(p.x); map[key].ys.push(p.y);
+    });
+    var out = [];
+    Object.keys(map).sort().forEach(function(k){
+      var g = map[k];
+      /* 用该周中间日期做 x（drawLine 支持 yyyy-MM-dd 格式） */
+      var mid = g.xs[Math.floor(g.xs.length/2)];
+      out.push({ x: mid, y: +(g.sum/g.n).toFixed(2), _label:k });
+    });
+    return out;
+  }
+  if(view === 'month'){
+    var map2 = {};
+    sorted.forEach(function(p){
+      var key = p.x.slice(0,7); /* yyyy-MM */
+      if(!map2[key]) map2[key] = { sum:0, n:0, xs:[] };
+      map2[key].sum += p.y; map2[key].n++; map2[key].xs.push(p.x);
+    });
+    var out2 = [];
+    Object.keys(map2).sort().forEach(function(k){
+      var g = map2[k];
+      var mid = g.xs[Math.floor(g.xs.length/2)];
+      out2.push({ x: mid, y: +(g.sum/g.n).toFixed(2), _label:k });
+    });
+    return out2;
+  }
+  return sorted;
+}
+/* 简易 ISO 周（以周一为一周开始，年内第几周） */
+function isoWeek(dateStr){
+  var d = parseD(dateStr);
+  var jan1 = new Date(d.getFullYear(),0,1).getTime();
+  /* 第 1 周 = 包含 1 月 1 日的那一周；这里简化：以当年第 1 个周一为第 1 周开始 */
+  var jan1Date = new Date(d.getFullYear(),0,1);
+  var jan1Dow = (jan1Date.getDay()+6)%7; /* 0=周一 */
+  var firstMonday = jan1 - jan1Dow*86400000;
+  var diff = (d - firstMonday)/86400000;
+  return Math.floor(diff/7) + 1;
 }
 function baseMeta(o){
   var src=o.source?o.source:'待补充';
@@ -2713,7 +2837,7 @@ window.__h30_api = {
  * 打开后后台拉取最新页面，若服务器版本高于本机，自动带时间戳刷新一次。
  * 每次发版需同步修改 APP_VERSION 与 index.html 的 ver-tag / ?v=N。
  */
-var APP_VERSION = 56;
+var APP_VERSION = 57;
 (function versionCheck(){
   if(/[?&]selftest=1/.test(location.search)) return;
   if(!window.fetch) return;
